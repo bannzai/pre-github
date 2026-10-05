@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Login</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#f6f8fa;color:#1f2328;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,sans-serif;font-size:14px;line-height:1.5}
+a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}
+code{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;font-size:12px}
+</style>
+</helmet>
+<div style="width:100%;min-height:720px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:48px 16px">
+  <div style="display:flex;align-items:center;gap:10px;font-size:24px;font-weight:600"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1f2328" stroke-width="2" aria-hidden="true"><path d="M3 12h7l2-9 4 18 2-9h3"/></svg>pre-github</div>
+  <form style="width:100%;max-width:360px;box-sizing:border-box;background:#fff;border:1px solid #d0d7de;border-radius:6px;padding:24px;display:flex;flex-direction:column;gap:16px">
+    <h1 style="margin:0;font-size:20px;font-weight:500">Enter the instance token</h1>
+    <p style="margin:0;color:#59636e">This instance belongs to one person. The token is the one set with <code>wrangler secret put PRE_GITHUB_TOKEN</code>. Nothing is shown until it matches.</p>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label for="token" style="font-weight:500">Token</label>
+      <input id="token" type="password" placeholder="paste the token" style="padding:8px 12px;border:1px solid #d0d7de;border-radius:6px;font-size:14px;box-sizing:border-box;width:100%">
+    </div>
+    <button type="button" style="padding:8px 16px;border:1px solid #1f883d;border-radius:6px;background:#1f883d;color:#fff;font-weight:500;font-size:14px;cursor:pointer">Sign in</button>
+    <p style="margin:0;color:#59636e;font-size:12px">A session cookie is set for this browser only (HttpOnly, Secure). The API uses the same token as a Bearer header.</p>
+  </form>
+  <p style="margin:0;color:#59636e">Self-hosted · <a href="https://github.com/bannzai/pre-github">how to deploy your own</a></p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+/** Static artboard: the login mockup has no state or tweaks. */
+class Component extends DCLogic {
+  /** Returns the template inputs; none are needed because all copy is literal markup. */
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

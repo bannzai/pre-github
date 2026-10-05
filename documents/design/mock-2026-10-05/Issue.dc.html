@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Issue preview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#ffffff;color:#1f2328;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,sans-serif;font-size:14px;line-height:1.5}
+a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}
+code,pre{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;font-size:12px}
+</style>
+</helmet>
+<div style="width:100%;max-width:1280px;margin:0 auto;box-sizing:border-box;display:flex;flex-direction:column">
+  <header style="display:flex;align-items:center;gap:16px;padding:12px 32px;background:#f6f8fa;border-bottom:1px solid #d0d7de;flex-wrap:wrap">
+    <a href="Main.dc.html" style="font-weight:600;color:#1f2328;display:flex;align-items:center;gap:8px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1f2328" stroke-width="2" aria-hidden="true"><path d="M3 12h7l2-9 4 18 2-9h3"/></svg>pre-github</a>
+    <span style="color:#59636e">/</span>
+    <a href="Issue.dc.html">bannzai</a><span style="color:#59636e">/</span><a href="Issue.dc.html" style="font-weight:600">pre-github</a>
+    <nav style="display:flex;gap:4px;margin-left:16px"><a href="Issue.dc.html" style="padding:6px 10px;border-radius:6px;color:#1f2328;border-bottom:2px solid #fd8c73;background:#fff">Issues</a><a href="Main.dc.html" style="padding:6px 10px;border-radius:6px;color:#1f2328">Pull requests</a></nav>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:8px;color:#59636e"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#1a7f37"></span>preview only — nothing here is on github.com</span>
+  </header>
+
+  <div style="display:flex;align-items:center;gap:12px;padding:12px 32px;background:#dafbe1;border-bottom:1px solid #4ac26b;color:#1a7f37">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a7f37" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+    <strong>No possible leaks found</strong><span style="color:#1f2328">Checked the title, the body and 1 comment for phone numbers, email addresses, home paths and API keys.</span>
+  </div>
+
+  <main style="padding:24px 32px;display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <h1 style="margin:0;font-size:32px;font-weight:400;line-height:1.25;flex:1 1 500px;min-width:0">Roadmap: MVP (API, preview pages, leak highlight, send script) <span style="color:#59636e;font-weight:300">#4</span></h1>
+      <button type="button" style="padding:5px 16px;border:1px solid #d0d7de;border-radius:6px;background:#f6f8fa;color:#cf222e;font-weight:500;cursor:pointer">Delete preview</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#59636e">
+      <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:6px;background:#1a7f37;color:#fff;font-weight:500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>Open</span>
+      <span><strong style="color:#1f2328">bannzai</strong> created this preview 5 minutes ago · 1 comment</span>
+    </div>
+
+    <section style="display:flex;flex-direction:column;gap:16px;margin-top:8px">
+      <div style="display:flex;gap:16px;align-items:flex-start">
+        <div style="width:40px;height:40px;border-radius:50%;background:#dbe9f7;display:flex;align-items:center;justify-content:center;color:#0969da;font-weight:600;flex-shrink:0">b</div>
+        <article style="flex:1 1 400px;min-width:0;border:1px solid #d0d7de;border-radius:6px">
+          <div style="padding:8px 16px;background:#f6f8fa;border-bottom:1px solid #d0d7de;display:flex;gap:8px;align-items:center"><strong>bannzai</strong><span style="color:#59636e">opened 5 minutes ago</span><span style="margin-left:auto;border:1px solid #d0d7de;border-radius:12px;padding:0 8px;color:#59636e;font-size:12px">Owner</span></div>
+          <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+            <p style="margin:0">Roadmap to the MVP. Features from gate 1, split into one issue each.</p>
+            <h2 style="margin:0;font-size:20px;padding-bottom:6px;border-bottom:1px solid #d8dee4">Child issues</h2>
+            <ul style="margin:0;padding-left:8px;list-style:none;display:flex;flex-direction:column;gap:4px">
+              <li style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="c1" checked disabled><label for="c1"><a href="Issue.dc.html">#5</a> D1 schema, token auth, GitHub-compatible API</label></li>
+              <li style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="c2" disabled><label for="c2"><a href="Issue.dc.html">#6</a> Login, issue and PR pages, delete button</label></li>
+              <li style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="c3" disabled><label for="c3"><a href="Issue.dc.html">#7</a> preview-pr.sh and README usage</label></li>
+              <li style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="c4" disabled><label for="c4"><a href="Issue.dc.html">#8</a> Leak highlight</label></li>
+            </ul>
+            <h2 style="margin:0;font-size:20px;padding-bottom:6px;border-bottom:1px solid #d8dee4">Order</h2>
+            <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr><th style="border:1px solid #d0d7de;padding:6px 12px;background:#f6f8fa;text-align:left">Wave</th><th style="border:1px solid #d0d7de;padding:6px 12px;background:#f6f8fa;text-align:left">Issue</th><th style="border:1px solid #d0d7de;padding:6px 12px;background:#f6f8fa;text-align:left">Starts when</th></tr></thead><tbody><tr><td style="border:1px solid #d0d7de;padding:6px 12px">1</td><td style="border:1px solid #d0d7de;padding:6px 12px">#5</td><td style="border:1px solid #d0d7de;padding:6px 12px">gate 1 answered</td></tr><tr><td style="border:1px solid #d0d7de;padding:6px 12px">2</td><td style="border:1px solid #d0d7de;padding:6px 12px">#6, #7</td><td style="border:1px solid #d0d7de;padding:6px 12px">#5 merged</td></tr></tbody></table></div>
+            <pre style="margin:0;background:#f6f8fa;border-radius:6px;padding:12px 16px;overflow-x:auto">tmux-issue-setup -a --claude --session pre-github --no-switch 5</pre>
+            <p style="margin:0;color:#59636e">Raw HTML in the body is shown escaped: <code style="background:#eff1f3;padding:2px 4px;border-radius:4px">&lt;script&gt;alert(1)&lt;/script&gt;</code></p>
+          </div>
+        </article>
+      </div>
+      <div style="display:flex;gap:16px;align-items:flex-start">
+        <div style="width:40px;height:40px;border-radius:50%;background:#dbe9f7;display:flex;align-items:center;justify-content:center;color:#0969da;font-weight:600;flex-shrink:0">b</div>
+        <article style="flex:1 1 400px;min-width:0;border:1px solid #d0d7de;border-radius:6px">
+          <div style="padding:8px 16px;background:#f6f8fa;border-bottom:1px solid #d0d7de;display:flex;gap:8px;align-items:center"><strong>bannzai</strong><span style="color:#59636e">commented 1 minute ago</span></div>
+          <div style="padding:16px"><p style="margin:0">Looks the same as it will on GitHub. Sending it now.</p></div>
+        </article>
+      </div>
+    </section>
+
+    <footer style="display:flex;gap:16px;align-items:center;padding-top:16px;border-top:1px solid #d0d7de;color:#59636e;flex-wrap:wrap">
+      <span>When it looks right, send the same title and body to GitHub:</span>
+      <code style="background:#f6f8fa;border:1px solid #d0d7de;padding:4px 8px;border-radius:6px">gh issue create --title "…" --body-file body.md</code>
+    </footer>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+/** Static artboard: the issue preview mockup has no state or tweaks. */
+class Component extends DCLogic {
+  /** Returns the template inputs; none are needed because all copy is literal markup. */
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

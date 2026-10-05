@@ -1,0 +1,17 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-05T11:50:00Z" },
+  "title": "pre-github mockups",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 1280, "h": 1180, "title": "Pull request preview", "expand": "fill" },
+    "Issue.dc.html": { "x": 1360, "y": 0, "w": 1280, "h": 900, "title": "Issue preview", "expand": "fill" },
+    "Login.dc.html": { "x": 2720, "y": 0, "w": 1280, "h": 720, "title": "Login", "expand": "fill" }
+  },
+  "order": ["Main.dc.html", "Issue.dc.html", "Login.dc.html"],
+  "notes": {
+    "t1": { "x": 0, "y": -300, "text": "pre-github — preview pages that look like GitHub, plus leak highlights", "kind": "title1", "maxW": 4000 }
+  },
+  "designSystems": []
+}
