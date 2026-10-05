@@ -40,12 +40,14 @@ pre-github speaks a subset of the GitHub REST API. The goal is that `gh api --ho
 
 ## HTML pages
 
-- `/{owner}/{repo}/issues/{number}` and `/{owner}/{repo}/pull/{number}` render the stored preview. `/{owner}/{repo}/issues` and `/{owner}/{repo}/pulls` list them.
-- Markdown is rendered as GitHub Flavored Markdown (tables, task lists, fenced code with language hint, autolinks, images by URL). Raw HTML in the body is escaped, not executed.
-- The PR page shows the diff per file with added and removed lines coloured, and the file list with counts.
+- `/{owner}/{repo}/issues/{number}` and `/{owner}/{repo}/pull/{number}` render the stored preview. `/{owner}/{repo}/issues` and `/{owner}/{repo}/pulls` list them (open by default, `?state=closed` for closed ones). `/` lists every `{owner}/{repo}` that has previews.
+- Markdown is rendered as GitHub Flavored Markdown (tables, task lists, fenced code with language hint, autolinks, images by URL), with markdown-it and its task list plugin. A line break inside a paragraph becomes `<br>`, as in GitHub issue and PR bodies. Raw HTML in the body is escaped, not executed.
+- The PR page shows the diff per file with added and removed lines coloured, and the file list with counts. The stored diff is parsed with parse-diff.
 - The leak highlight runs over the body, the comments, and the diff. Patterns (specific regexes are the agent's choice, recorded in code): phone numbers, email addresses, absolute home paths (`/Users/<name>`, `/home/<name>`), and strings that look like API keys or tokens. The page shows the count at the top and marks each match inline.
-- The page has a delete button. Deleting calls the `DELETE` API.
-- Pages are protected by the same token as the API, through a login page that stores a session cookie (`HttpOnly`, `Secure`, `SameSite=Lax`). Without the cookie the pages return the login page and nothing else.
+- The page has a delete button. It opens a confirmation whose form posts to `<page>/delete`, which removes the preview with the same function as the `DELETE` API and returns to the list. The post is refused unless its `Origin` is the instance itself.
+- Pages are protected by the same token as the API, through a login page (`/login`) that stores a session cookie (`HttpOnly`, `Secure`, `SameSite=Lax`). Without the cookie the pages return the login page and nothing else, with status 401, whether or not the preview exists. The API token in an `Authorization` header does not open a page. A login form over 64 KiB is refused with 413 before it is parsed.
+- The session cookie holds its expiry time (30 days after login) signed with HMAC-SHA256 keyed by `PRE_GITHUB_TOKEN`. Nothing is stored on the server, and changing the token ends every session.
+- Pages run no script. They are served with a Content Security Policy that allows inline styles and images from any host only, `Cache-Control: no-store`, and `Referrer-Policy: same-origin`, so that the image hosts referenced by a body do not learn the page URL (`no-referrer` would also send the delete form's `Origin` as `null`).
 
 ## Data
 

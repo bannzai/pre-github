@@ -3,20 +3,20 @@ import { requireToken } from "./auth";
 import { githubError } from "./github-error";
 
 /** Which GitHub resource a preview is: the `kind` column of `previews`. */
-type PreviewKind = "issue" | "pull";
+export type PreviewKind = "issue" | "pull";
 
 /** The previews of one kind in one `{owner}/{repo}`, taken from the request path. */
-type PreviewScope = { owner: string; repo: string; kind: PreviewKind };
+export type PreviewScope = { owner: string; repo: string; kind: PreviewKind };
 
 /** One preview, taken from the request path: its scope and the `{number}` path parameter. */
-type PreviewAddress = PreviewScope & { number: string };
+export type PreviewAddress = PreviewScope & { number: string };
 
 /** The `previews` columns every JSON response is built from. `diff` is served only as text. */
-const previewColumns =
+export const previewColumns =
   "id, owner, repo, number, kind, title, body, state, head, base, created_at, updated_at";
 
 /** A `previews` row as selected by `previewColumns`. */
-type PreviewRow = {
+export type PreviewRow = {
   id: number;
   owner: string;
   repo: string;
@@ -32,10 +32,10 @@ type PreviewRow = {
 };
 
 /** A `comments` row as selected by the comment queries. */
-type CommentRow = { id: number; body: string; created_at: string; updated_at: string };
+export type CommentRow = { id: number; body: string; created_at: string; updated_at: string };
 
 /** The WHERE condition that selects the preview at `PreviewAddress`, bound as ?1 to ?4. */
-const previewAddressCondition = "owner = ?1 AND repo = ?2 AND number = ?3 AND kind = ?4";
+export const previewAddressCondition = "owner = ?1 AND repo = ?2 AND number = ?3 AND kind = ?4";
 
 /**
  * The WHERE condition that selects the preview at `PreviewAddress` (?1 to ?4) only when, patched
@@ -60,12 +60,24 @@ const maxTextBytes = 1_000_000;
  */
 const maxPreviewTextBytes = 990_000;
 
-/** The HTML page of a preview on this instance (the pages themselves are a separate change). */
+/** The path under which the HTML pages of an `{owner}/{repo}` live (src/pages.ts). */
+export function repositoryPath(scope: Pick<PreviewScope, "owner" | "repo">): string {
+  return `/${encodeURIComponent(scope.owner)}/${encodeURIComponent(scope.repo)}`;
+}
+
+/** The path of a preview's HTML page, which is GitHub's path of the same issue or pull request. */
+export function previewPagePath(
+  preview: Pick<PreviewRow, "owner" | "repo" | "number" | "kind">,
+): string {
+  return `${repositoryPath(preview)}/${preview.kind === "pull" ? "pull" : "issues"}/${preview.number}`;
+}
+
+/** The URL of a preview's HTML page on the instance at `origin`. */
 function previewHtmlUrl(
   origin: string,
   preview: Pick<PreviewRow, "owner" | "repo" | "number" | "kind">,
 ): string {
-  return `${origin}/${encodeURIComponent(preview.owner)}/${encodeURIComponent(preview.repo)}/${preview.kind === "pull" ? "pull" : "issues"}/${preview.number}`;
+  return `${origin}${previewPagePath(preview)}`;
 }
 
 /**
@@ -417,9 +429,10 @@ async function updatePreview(
 /**
  * `DELETE .../issues/{number}` and `DELETE .../pulls/{number}` (an extension; GitHub has no
  * such endpoint): removes the preview and its comments and writes a `deleted` event in the same
- * batch. Answers 204, or 404 when there was nothing to delete.
+ * batch. Answers 204, or 404 when there was nothing to delete. The delete button of the HTML
+ * pages runs the same function.
  */
-async function deletePreview(db: D1Database, address: PreviewAddress): Promise<Response> {
+export async function deletePreview(db: D1Database, address: PreviewAddress): Promise<Response> {
   const results = await db.batch([
     db
       .prepare(
@@ -509,46 +522,45 @@ async function listComments(
 
 /**
  * The GitHub-compatible REST routes under `/repos` (documents/PROJECT.md, GitHub API
- * compatibility). Every route requires the instance token.
+ * compatibility). Every route requires the instance token. The token check sits on each route
+ * rather than on `/repos/*`, so that the page of an `{owner}` named `repos` stays reachable.
  */
 export const repos = new Hono<{ Bindings: Cloudflare.Env }>();
 
-repos.use("/repos/*", requireToken);
-
-repos.post("/repos/:owner/:repo/issues", (c) =>
+repos.post("/repos/:owner/:repo/issues", requireToken, (c) =>
   createPreview(c.env.DB, c.req.raw, { ...c.req.param(), kind: "issue" }),
 );
-repos.get("/repos/:owner/:repo/issues", (c) =>
+repos.get("/repos/:owner/:repo/issues", requireToken, (c) =>
   listPreviews(c.env.DB, c.req.raw, { ...c.req.param(), kind: "issue" }),
 );
-repos.get("/repos/:owner/:repo/issues/:number{[0-9]+}", (c) =>
+repos.get("/repos/:owner/:repo/issues/:number{[0-9]+}", requireToken, (c) =>
   getPreview(c.env.DB, c.req.raw, { ...c.req.param(), kind: "issue" }),
 );
-repos.patch("/repos/:owner/:repo/issues/:number{[0-9]+}", (c) =>
+repos.patch("/repos/:owner/:repo/issues/:number{[0-9]+}", requireToken, (c) =>
   updatePreview(c.env.DB, c.req.raw, { ...c.req.param(), kind: "issue" }),
 );
-repos.delete("/repos/:owner/:repo/issues/:number{[0-9]+}", (c) =>
+repos.delete("/repos/:owner/:repo/issues/:number{[0-9]+}", requireToken, (c) =>
   deletePreview(c.env.DB, { ...c.req.param(), kind: "issue" }),
 );
-repos.post("/repos/:owner/:repo/issues/:number{[0-9]+}/comments", (c) =>
+repos.post("/repos/:owner/:repo/issues/:number{[0-9]+}/comments", requireToken, (c) =>
   createComment(c.env.DB, c.req.raw, c.req.param()),
 );
-repos.get("/repos/:owner/:repo/issues/:number{[0-9]+}/comments", (c) =>
+repos.get("/repos/:owner/:repo/issues/:number{[0-9]+}/comments", requireToken, (c) =>
   listComments(c.env.DB, c.req.raw, c.req.param()),
 );
 
-repos.post("/repos/:owner/:repo/pulls", (c) =>
+repos.post("/repos/:owner/:repo/pulls", requireToken, (c) =>
   createPreview(c.env.DB, c.req.raw, { ...c.req.param(), kind: "pull" }),
 );
-repos.get("/repos/:owner/:repo/pulls", (c) =>
+repos.get("/repos/:owner/:repo/pulls", requireToken, (c) =>
   listPreviews(c.env.DB, c.req.raw, { ...c.req.param(), kind: "pull" }),
 );
-repos.get("/repos/:owner/:repo/pulls/:number{[0-9]+}", (c) =>
+repos.get("/repos/:owner/:repo/pulls/:number{[0-9]+}", requireToken, (c) =>
   getPreview(c.env.DB, c.req.raw, { ...c.req.param(), kind: "pull" }),
 );
-repos.patch("/repos/:owner/:repo/pulls/:number{[0-9]+}", (c) =>
+repos.patch("/repos/:owner/:repo/pulls/:number{[0-9]+}", requireToken, (c) =>
   updatePreview(c.env.DB, c.req.raw, { ...c.req.param(), kind: "pull" }),
 );
-repos.delete("/repos/:owner/:repo/pulls/:number{[0-9]+}", (c) =>
+repos.delete("/repos/:owner/:repo/pulls/:number{[0-9]+}", requireToken, (c) =>
   deletePreview(c.env.DB, { ...c.req.param(), kind: "pull" }),
 );
