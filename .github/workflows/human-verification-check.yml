@@ -1,0 +1,31 @@
+name: human-verification-check
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  human-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Detect unchecked items under "## 人間が確認"
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # PR bodies arrive with CRLF line endings; strip CR before matching line by line.
+          body=$(printf '%s\n' "$PR_BODY" | tr -d '\r')
+          # PRs without the section (dependabot and other generated PRs) are out of scope and pass.
+          section=$(printf '%s\n' "$body" | awk '/^## 人間が確認 *$/{flag=1; next} /^## /{flag=0} flag')
+          if [ -z "$section" ]; then
+            echo "No '## 人間が確認' section; nothing to check"
+            exit 0
+          fi
+          unchecked=$(printf '%s\n' "$section" | grep -Ec '^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]+\[ \]' || true)
+          if [ "$unchecked" -gt 0 ]; then
+            printf '%s\n' "$section" | grep -En '^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]+\[ \]'
+            echo "::error::'## 人間が確認' has ${unchecked} unchecked item(s). A human must verify and tick them"
+            exit 1
+          fi
+          echo "All '## 人間が確認' items are checked"

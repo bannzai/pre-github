@@ -1,0 +1,7 @@
+dist
+tmp
+test-results
+playwright-report
+.wrangler
+package-lock.json
+*.md
