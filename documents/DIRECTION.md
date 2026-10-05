@@ -55,6 +55,11 @@ MVP に入れないもの: git push の受け付け (`gh pr create` をそのま
 | 2026-10-05 | API の実装 (#5) | issue の `labels` は受け付けて捨てる (保存も応答もしない)。GitHub と同じ名前で違う振る舞いの field を返さないため | agent |
 | 2026-10-05 | API の実装 (#5) | `/issues` の一覧・単体・PATCH・DELETE は issue だけを扱い、PR は `/pulls` で扱う。comments だけは GitHub と同じく issue と PR の両方に効く | agent |
 | 2026-10-05 | API の実装 (#5) | 番号は `{owner}/{repo}` ごとの最大値 + 1 で採番する。削除後に `events` 以外を残さないため、最新の preview を消すと次の preview が同じ番号を使う | agent |
+| 2026-10-06 | ページの実装 (#6) | Markdown は markdown-it (`html: false` で生の HTML をエスケープし、`javascript:` などのリンク先を既定で拒む。表・取り消し線・autolink を持つ) と @mdit/plugin-tasklist で描画する。差分は parse-diff で解析して自前の表で描く。どれも依存が少ない純粋な JavaScript で Workers で動き、出力を GitHub と同じ class 名に寄せられるため | agent |
+| 2026-10-06 | ページの実装 (#6) | ログインの Cookie は有効期限 (30 日) を `PRE_GITHUB_TOKEN` で署名した値だけを持ち、サーバー側にセッションを保存しない。D1 にセッションの表を足さずに済み、token を替えると全セッションが切れるため | agent |
+| 2026-10-06 | ページの実装 (#6) | 削除ボタンはスクリプトを使わず、確認の表示を挟んでページの `/delete` へ form で POST し、API の `DELETE` と同じ関数で消して一覧へ戻す。ブラウザは API の token を持たず、API に Cookie 認証を足すと API の守りが広がるため。`Origin` が自分でない POST は拒む | agent |
+| 2026-10-06 | ページの実装 (#6) | Cookie の無いページ要求は、preview の有無によらず 401 とログイン画面を返す。API の token のヘッダではページを開けない | agent |
+| 2026-10-06 | ページの実装 (#6) | 見た目は documents/design/mock-2026-10-05/ のモックに合わせ、モックにあってもデータに無いもの (作成者名・アバター・commit 数) は描かない。漏えい候補の帯は漏えい候補の強調の issue で足す | agent |
 
 ## agent に任せること
 
