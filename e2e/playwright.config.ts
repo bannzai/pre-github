@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 // wrangler dev's default port. Nothing else listens on the CI runner.
 const port = 8787;
+// The only credential of the instance under test. Not a real token.
+const token = "e2e-token";
 
 export default defineConfig({
   testDir: "./tests",
@@ -11,19 +13,22 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"], baseURL: `http://127.0.0.1:${port}` },
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: `http://127.0.0.1:${port}`,
+        extraHTTPHeaders: { Authorization: `token ${token}` },
+      },
     },
   ],
   webServer: {
     // The same local D1 as the unit tests: apply the migrations, then serve the Worker.
-    command: `npm run migrate:local && npx wrangler dev --port ${port}`,
+    // wrangler dev does not pass the process environment to the Worker; --var does.
+    command: `npm run migrate:local && npx wrangler dev --port ${port} --var PRE_GITHUB_TOKEN:${token}`,
     cwd: "..",
     url: `http://127.0.0.1:${port}/healthz`,
     reuseExistingServer: false,
     timeout: 180_000,
     env: {
-      // The only credential of the instance under test. Not a real token.
-      PRE_GITHUB_TOKEN: "e2e-token",
       WRANGLER_SEND_METRICS: "false",
     },
   },
