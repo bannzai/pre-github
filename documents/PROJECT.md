@@ -24,8 +24,8 @@ pre-github speaks a subset of the GitHub REST API. The goal is that `gh api --ho
 
 | Method and path | GitHub behaviour kept | Notes |
 | --- | --- | --- |
-| `POST /repos/{owner}/{repo}/issues` | request fields `title`, `body`, `labels`; response fields `number`, `title`, `body`, `state`, `html_url`, `created_at`, `updated_at` | |
-| `GET /repos/{owner}/{repo}/issues` and `/issues/{number}` | list and single issue | list returns newest first |
+| `POST /repos/{owner}/{repo}/issues` | request fields `title`, `body`, `labels`; response fields `id`, `number`, `title`, `body`, `state`, `html_url`, `created_at`, `updated_at` | `labels` is accepted and ignored (not stored, not returned) |
+| `GET /repos/{owner}/{repo}/issues` and `/issues/{number}` | list and single issue; `state` (default `open`), `per_page` (default 30, max 100), `page`, with GitHub's defaults | list returns newest first. Unlike GitHub, the issue endpoints other than comments do not return pull requests |
 | `PATCH /repos/{owner}/{repo}/issues/{number}` | `title`, `body`, `state` | |
 | `POST /repos/{owner}/{repo}/pulls` | request fields `title`, `body`, `head`, `base`; response fields as above plus `head.ref`, `base.ref` | extension: `diff` (unified diff text) because there is no git server |
 | `GET /repos/{owner}/{repo}/pulls` and `/pulls/{number}` | list and single PR | `GET .../pulls/{number}` with `Accept: application/vnd.github.diff` returns the stored diff |
@@ -51,7 +51,8 @@ pre-github speaks a subset of the GitHub REST API. The goal is that `gh api --ho
 
 - Storage is Cloudflare D1 only. Schema and migrations live in `migrations/` (`.claude/rules/d1-database.md`).
 - Tables hold previews (issues and pull requests share numbering per `{owner}/{repo}`, as on GitHub), comments, and `events` (`kind` is `created` / `updated` / `deleted`, with the timestamp only; no title or body). `events` is the measurement source in DIRECTION.md.
-- Deletion is a hard delete. Nothing is kept after `DELETE` except the `events` row.
+- Deletion is a hard delete. Nothing is kept after `DELETE` except the `events` row. Because no counter survives, deleting the newest preview of a `{owner}/{repo}` lets the next preview reuse its number.
+- A `body` or `diff` over 1,000,000 bytes is rejected with 422.
 - Images are referenced by URL. Uploads are out of scope for the MVP.
 
 ## Constraints
