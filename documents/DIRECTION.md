@@ -51,7 +51,7 @@ MVP に入れないもの: git push の受け付け (`gh pr create` をそのま
 | 2026-10-05 | 関門 1 の前 | bannzai が第三者向けに運用するサービスが無い (各自がセルフホストする) ため、利用規約・プライバシーポリシー・紹介サイト・特定商取引法の表記・Search Console は作らず、README の記載で代える (同じ構成の bannzai/agent-timeline に合わせた) | agent |
 | 2026-10-05 | 関門 1 の前 | この文書は castle の型 (見出し固定) に合わせて日本語で書く。README・AGENTS.md・PROJECT.md・コードのコメントは、他者がセルフホストする OSS として英語で書く。関門 1 で OSS として扱うかの返答を得てから確定する | agent |
 | 2026-10-05 | 関門 1 の前 | main へのマージで bannzai のインスタンスへ自動デプロイしない。デプロイの workflow は `workflow_dispatch` だけにし、関門 3 で公開に進むと決めた後に有効化する | agent |
-| 2026-10-05 | 関門 1 | 作る。機能は上の一覧のまま (「GH API と互換」「HTML アップロード」の読み方も agent の案のまま)。OSS として扱い MIT・英語のまま。bannzai がチャットで出した進行の指示「マージとかガンガン進めていって。止まらないで」を agent が関門 1 の返答 (提示した案のとおり進める) と解釈した。記録: https://github.com/bannzai/pre-github/issues/1#issuecomment-5993708539 。解釈が違えば同 issue のコメントで指摘を受け、行を足して直す | bannzai |
+| 2026-10-05 | 関門 1 | 作る。機能は上の一覧のまま (「GH API と互換」「HTML アップロード」の読み方も agent の案のまま)。OSS として扱い MIT・英語のまま。bannzai がチャットで出した進行の指示「マージとかガンガン進めていって。止まらないで」を agent が関門 1 の返答 (提示した案のとおり進める) と解釈した。記録: https://github.com/bannzai/pre-github/issues/1#issuecomment-5993708539 。解釈が違えば同 issue のコメントで指摘を受け、行を足して直す | agent (bannzai の進行の指示を根拠に) |
 
 ## agent に任せること
 
