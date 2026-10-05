@@ -124,6 +124,15 @@ assert_contains "pr without changes: reason" "$err" "no changes between origin/m
 assert_equal "pr without changes: gh is not called" "$(cat "$work/args")" ""
 git -C "$repo" checkout -q feature
 
+# A base with no common ancestor makes git diff fail, as in a shallow clone
+git -C "$repo" update-ref refs/remotes/origin/unrelated "$(git -C "$repo" -c user.name=test \
+  -c user.email=test@example.com commit-tree "$(git -C "$repo" hash-object -w -t tree /dev/null)" \
+  -m unrelated)"
+run "$scripts_dir/preview-pr.sh" --title "No merge base" --base origin/unrelated
+assert_equal "pr without merge base: status" "$status" 1
+assert_contains "pr without merge base: reason" "$err" "could not compute git diff origin/unrelated...HEAD"
+assert_equal "pr without merge base: gh is not called" "$(cat "$work/args")" ""
+
 run env GH_STUB_FAIL=1 "$scripts_dir/preview-pr.sh" --title "API error"
 assert_equal "pr with API error: status" "$status" 1
 assert_contains "pr with API error: gh message" "$err" "Not Found (HTTP 404)"

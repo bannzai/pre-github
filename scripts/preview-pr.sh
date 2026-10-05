@@ -63,9 +63,13 @@ preview_require_environment
 [ -z "$body_file" ] || [ -f "$body_file" ] || preview_fail "body file not found: $body_file"
 git rev-parse --verify --quiet "$base^{commit}" >/dev/null || preview_fail "base not found: $base"
 head="$(git symbolic-ref --short --quiet HEAD)" || preview_fail "HEAD is detached; check out a branch"
-if git diff --quiet "$base...HEAD"; then
-  preview_fail "no changes between $base and HEAD"
-fi
+diff_file="$(mktemp)"
+trap 'rm -f "$diff_file"' EXIT
+# Written to a file and checked before sending, because a failed git diff (for example no merge
+# base in a shallow clone) would otherwise send an empty diff that the API accepts.
+git diff --no-color --no-ext-diff "$base...HEAD" >"$diff_file" ||
+  preview_fail "could not compute git diff $base...HEAD"
+[ -s "$diff_file" ] || preview_fail "no changes between $base and HEAD"
 preview_resolve_repository "$owner" "$repo"
 
 # GitHub's base.ref is a branch name, so a remote-tracking base such as origin/main is sent as main.
@@ -81,6 +85,6 @@ jq -n \
   --rawfile body "${body_file:-/dev/null}" \
   --arg head "$head" \
   --arg base "$base_ref" \
-  --rawfile diff <(git diff --no-color --no-ext-diff "$base...HEAD") \
+  --rawfile diff "$diff_file" \
   '{title: $title, body: $body, head: $head, base: $base, diff: $diff}' |
   preview_send pulls
