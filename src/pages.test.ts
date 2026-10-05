@@ -232,6 +232,30 @@ describe("preview pages", () => {
     expect(page).toContain('<code class="branch">feature</code>');
   });
 
+  it("show a non-ASCII file name that Git quoted with octal escapes as text", async () => {
+    // `git diff` with the default core.quotePath writes 日本.md as "\346\227\245\346\234\254.md".
+    const quotedPath = "\\346\\227\\245\\346\\234\\254.md";
+    const created = await createPreview("/repos/alice/pages-quoted/pulls", {
+      title: "Quoted path",
+      head: "feature",
+      base: "main",
+      diff: [
+        `diff --git "a/${quotedPath}" "b/${quotedPath}"`,
+        "new file mode 100644",
+        "--- /dev/null",
+        `+++ "b/${quotedPath}"`,
+        "@@ -0,0 +1 @@",
+        "+text",
+        "",
+      ].join("\n"),
+    });
+    const page = compactHtml(
+      await (await getPage(new URL(created.html_url).pathname, await sessionCookie())).text(),
+    );
+    expect(page).toContain("<code>日本.md</code>");
+    expect(page).not.toContain("\\346");
+  });
+
   it("list the previews of a repository by state", async () => {
     await createPreview("/repos/alice/pages-list/issues", { title: "Listed issue" });
     const page = compactHtml(

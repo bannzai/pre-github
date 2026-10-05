@@ -158,11 +158,43 @@ function deleteControl(pagePath: string): PageHtml {
   </details>`;
 }
 
+/** The bytes of the single-character escapes Git writes in a quoted path, keyed by the character. */
+const gitPathEscapedBytes: Record<string, number> = {
+  a: 7,
+  b: 8,
+  t: 9,
+  n: 10,
+  v: 11,
+  f: 12,
+  r: 13,
+  '"': 34,
+  "\\": 92,
+};
+
+/**
+ * `path` with the C-style escapes of a path Git quoted (`core.quotePath`, on by default) decoded,
+ * so that `\346\227\245\346\234\254.md` shows as `日本.md`, as on GitHub. parse-diff strips the
+ * quotes but keeps the escapes. Git quotes every path that contains a backslash, so a backslash
+ * in a parsed path always starts an escape.
+ */
+function decodeGitPath(path: string): string {
+  if (!path.includes("\\")) return path;
+  const bytes = path.split(/(\\[0-7]{3}|\\.)/).flatMap((part) => {
+    if (part.startsWith("\\")) {
+      const byte =
+        part.length === 4 ? parseInt(part.slice(1), 8) : gitPathEscapedBytes[part.slice(1)];
+      if (byte !== undefined) return [byte];
+    }
+    return [...new TextEncoder().encode(part)];
+  });
+  return new TextDecoder().decode(new Uint8Array(bytes));
+}
+
 /** The name of a changed file: its path, or `old → new` for a rename. */
 function changedFileName(file: parseDiff.File): string {
-  const [oldName, newName] = [file.from, file.to].filter(
-    (name): name is string => name !== undefined && name !== "/dev/null",
-  );
+  const [oldName, newName] = [file.from, file.to]
+    .filter((name): name is string => name !== undefined && name !== "/dev/null")
+    .map(decodeGitPath);
   // A diff without file headers names no file; the table below still shows its lines.
   if (oldName === undefined) return "(unnamed file)";
   return newName === undefined || newName === oldName ? oldName : `${oldName} → ${newName}`;
