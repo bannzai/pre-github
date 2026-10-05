@@ -47,7 +47,7 @@ pre-github speaks a subset of the GitHub REST API. The goal is that `gh api --ho
 - The page has a delete button. It opens a confirmation whose form posts to `<page>/delete`, which removes the preview with the same function as the `DELETE` API and returns to the list. The post is refused unless its `Origin` is the instance itself.
 - Pages are protected by the same token as the API, through a login page (`/login`) that stores a session cookie (`HttpOnly`, `Secure`, `SameSite=Lax`). Without the cookie the pages return the login page and nothing else, with status 401, whether or not the preview exists. The API token in an `Authorization` header does not open a page.
 - The session cookie holds its expiry time (30 days after login) signed with HMAC-SHA256 keyed by `PRE_GITHUB_TOKEN`. Nothing is stored on the server, and changing the token ends every session.
-- Pages run no script. They are served with a Content Security Policy that allows inline styles and images from any host only, `Cache-Control: no-store`, and `Referrer-Policy: no-referrer`, so that the image hosts referenced by a body do not learn the page URL.
+- Pages run no script. They are served with a Content Security Policy that allows inline styles and images from any host only, `Cache-Control: no-store`, and `Referrer-Policy: same-origin`, so that the image hosts referenced by a body do not learn the page URL (`no-referrer` would also send the delete form's `Origin` as `null`).
 
 ## Data
 

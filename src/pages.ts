@@ -28,17 +28,23 @@ type PageHtml = ReturnType<typeof html>;
  * Headers of every HTML page. The pages run no script, and a body may show images from any
  * host, so the policy allows inline styles and images only. Pages hold unpublished text: they
  * are not cached, and no page URL is sent as a referrer to the hosts of those images.
+ * `same-origin` rather than `no-referrer`, because `no-referrer` also turns the `Origin` of the
+ * delete form's POST into `null`, which `deleteResponse` refuses.
  */
 const pageHeaders = {
   "Content-Security-Policy":
     "default-src 'none'; style-src 'unsafe-inline'; img-src * data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
-  "Referrer-Policy": "no-referrer",
+  "Referrer-Policy": "same-origin",
   "Cache-Control": "no-store",
   "X-Content-Type-Options": "nosniff",
 };
 
 /** Answers `content` as an HTML page with `status` and `pageHeaders`. */
-function pageResponse(c: PageContext, content: PageHtml, status: 200 | 401 | 403 | 404): Response {
+function pageResponse(
+  c: PageContext,
+  content: PageHtml,
+  status: 200 | 401 | 403 | 404,
+): Response | Promise<Response> {
   return c.html(content, status, pageHeaders);
 }
 
@@ -470,7 +476,8 @@ function localPath(requestUrl: string, next: unknown): string {
   if (typeof next !== "string" || next === "") return "/";
   try {
     const nextUrl = new URL(next, requestUrl);
-    return nextUrl.origin === new URL(requestUrl).origin
+    // A pathname starting with `//` would be read back as another host (`//evil.example`).
+    return nextUrl.origin === new URL(requestUrl).origin && !nextUrl.pathname.startsWith("//")
       ? `${nextUrl.pathname}${nextUrl.search}`
       : "/";
   } catch {

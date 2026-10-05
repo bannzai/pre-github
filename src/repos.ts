@@ -522,46 +522,45 @@ async function listComments(
 
 /**
  * The GitHub-compatible REST routes under `/repos` (documents/PROJECT.md, GitHub API
- * compatibility). Every route requires the instance token.
+ * compatibility). Every route requires the instance token. The token check sits on each route
+ * rather than on `/repos/*`, so that the page of an `{owner}` named `repos` stays reachable.
  */
 export const repos = new Hono<{ Bindings: Cloudflare.Env }>();
 
-repos.use("/repos/*", requireToken);
-
-repos.post("/repos/:owner/:repo/issues", (c) =>
+repos.post("/repos/:owner/:repo/issues", requireToken, (c) =>
   createPreview(c.env.DB, c.req.raw, { ...c.req.param(), kind: "issue" }),
 );
-repos.get("/repos/:owner/:repo/issues", (c) =>
+repos.get("/repos/:owner/:repo/issues", requireToken, (c) =>
   listPreviews(c.env.DB, c.req.raw, { ...c.req.param(), kind: "issue" }),
 );
-repos.get("/repos/:owner/:repo/issues/:number{[0-9]+}", (c) =>
+repos.get("/repos/:owner/:repo/issues/:number{[0-9]+}", requireToken, (c) =>
   getPreview(c.env.DB, c.req.raw, { ...c.req.param(), kind: "issue" }),
 );
-repos.patch("/repos/:owner/:repo/issues/:number{[0-9]+}", (c) =>
+repos.patch("/repos/:owner/:repo/issues/:number{[0-9]+}", requireToken, (c) =>
   updatePreview(c.env.DB, c.req.raw, { ...c.req.param(), kind: "issue" }),
 );
-repos.delete("/repos/:owner/:repo/issues/:number{[0-9]+}", (c) =>
+repos.delete("/repos/:owner/:repo/issues/:number{[0-9]+}", requireToken, (c) =>
   deletePreview(c.env.DB, { ...c.req.param(), kind: "issue" }),
 );
-repos.post("/repos/:owner/:repo/issues/:number{[0-9]+}/comments", (c) =>
+repos.post("/repos/:owner/:repo/issues/:number{[0-9]+}/comments", requireToken, (c) =>
   createComment(c.env.DB, c.req.raw, c.req.param()),
 );
-repos.get("/repos/:owner/:repo/issues/:number{[0-9]+}/comments", (c) =>
+repos.get("/repos/:owner/:repo/issues/:number{[0-9]+}/comments", requireToken, (c) =>
   listComments(c.env.DB, c.req.raw, c.req.param()),
 );
 
-repos.post("/repos/:owner/:repo/pulls", (c) =>
+repos.post("/repos/:owner/:repo/pulls", requireToken, (c) =>
   createPreview(c.env.DB, c.req.raw, { ...c.req.param(), kind: "pull" }),
 );
-repos.get("/repos/:owner/:repo/pulls", (c) =>
+repos.get("/repos/:owner/:repo/pulls", requireToken, (c) =>
   listPreviews(c.env.DB, c.req.raw, { ...c.req.param(), kind: "pull" }),
 );
-repos.get("/repos/:owner/:repo/pulls/:number{[0-9]+}", (c) =>
+repos.get("/repos/:owner/:repo/pulls/:number{[0-9]+}", requireToken, (c) =>
   getPreview(c.env.DB, c.req.raw, { ...c.req.param(), kind: "pull" }),
 );
-repos.patch("/repos/:owner/:repo/pulls/:number{[0-9]+}", (c) =>
+repos.patch("/repos/:owner/:repo/pulls/:number{[0-9]+}", requireToken, (c) =>
   updatePreview(c.env.DB, c.req.raw, { ...c.req.param(), kind: "pull" }),
 );
-repos.delete("/repos/:owner/:repo/pulls/:number{[0-9]+}", (c) =>
+repos.delete("/repos/:owner/:repo/pulls/:number{[0-9]+}", requireToken, (c) =>
   deletePreview(c.env.DB, { ...c.req.param(), kind: "pull" }),
 );

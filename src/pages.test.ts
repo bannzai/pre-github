@@ -98,14 +98,16 @@ describe("page login", () => {
     expect(await page.text()).toContain("Visible after login");
   });
 
-  it.each(["//evil.example/path", "https://evil.example/path", "javascript:alert(1)"])(
-    "returns to / instead of next=%s",
-    async (next) => {
-      const response = await postLogin(env.PRE_GITHUB_TOKEN ?? "", next);
-      expect(response.status).toBe(303);
-      expect(response.headers.get("Location")).toBe("/");
-    },
-  );
+  it.each([
+    "//evil.example/path",
+    "https://evil.example/path",
+    "javascript:alert(1)",
+    `${origin}//evil.example/path`,
+  ])("returns to / instead of next=%s", async (next) => {
+    const response = await postLogin(env.PRE_GITHUB_TOKEN ?? "", next);
+    expect(response.status).toBe(303);
+    expect(response.headers.get("Location")).toBe("/");
+  });
 
   it("refuses a session cookie whose signature does not match", async () => {
     const [name, value] = (await sessionCookie()).split("=") as [string, string];
@@ -145,6 +147,8 @@ describe("preview pages", () => {
     const response = await getPage(new URL(created.html_url).pathname, await sessionCookie());
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Security-Policy")).toContain("default-src 'none'");
+    // `no-referrer` would send the delete form's Origin as null (see pageHeaders).
+    expect(response.headers.get("Referrer-Policy")).toBe("same-origin");
     const page = await response.text();
     expect(page).toContain("&lt;b&gt;Title&lt;/b&gt; stays text");
     expect(page).toMatch(/<input(?=[^>]*type="checkbox")(?=[^>]*checked)[^>]*>/);
@@ -226,6 +230,13 @@ describe("preview pages", () => {
     const cookie = await sessionCookie();
     expect((await getPage("/alice/pages-missing/issues/2", cookie)).status).toBe(404);
     expect((await getPage("/alice/pages-missing/pull/1", cookie)).status).toBe(404);
+  });
+
+  it("open for an owner named repos, whose paths start like the API's", async () => {
+    const created = await createPreview("/repos/repos/demo/issues", { title: "Owner repos" });
+    const response = await getPage(new URL(created.html_url).pathname, await sessionCookie());
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("Owner repos");
   });
 });
 
