@@ -201,8 +201,16 @@ function changedFileName(file: parseDiff.File): string {
 }
 
 /**
+ * The abbreviated object ID of an empty file, as the `index` line of a Git diff shows it. A file
+ * added or deleted without hunks is empty only when its side of the `index` line is this ID; a
+ * binary file has no hunks either.
+ */
+const emptyBlobIdPrefix = "e69de29";
+
+/**
  * What changed in a file besides its lines, as GitHub notes it above the diff: a mode change,
- * and for a file without hunks, whether it was an empty file added or deleted, or a rename.
+ * and for a file without hunks, whether it is an empty file, a rename, or a file whose content
+ * has no text lines (such as a binary file).
  */
 function fileChangeNotes(file: parseDiff.File): string[] {
   const modeNote =
@@ -210,9 +218,27 @@ function fileChangeNotes(file: parseDiff.File): string[] {
       ? [`File mode changed from ${file.oldMode} to ${file.newMode}`]
       : [];
   if (file.chunks.length > 0) return modeNote;
-  if (file.new) return [...modeNote, "Empty file added"];
-  if (file.deleted) return [...modeNote, "Empty file deleted"];
+  const [oldBlobId, newBlobId] = file.index?.[0]?.split("..") ?? [];
+  if (file.new) {
+    return [
+      ...modeNote,
+      newBlobId?.startsWith(emptyBlobIdPrefix)
+        ? "Empty file added"
+        : "File added with no text lines, such as a binary file",
+    ];
+  }
+  if (file.deleted) {
+    return [
+      ...modeNote,
+      oldBlobId?.startsWith(emptyBlobIdPrefix)
+        ? "Empty file deleted"
+        : "File deleted with no text lines, such as a binary file",
+    ];
+  }
   if (file.from !== file.to) return [...modeNote, "File renamed without changes"];
+  if (oldBlobId !== newBlobId) {
+    return [...modeNote, "File changed with no text lines, such as a binary file"];
+  }
   return modeNote.length > 0 ? modeNote : ["No text changes"];
 }
 

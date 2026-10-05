@@ -265,7 +265,7 @@ describe("preview pages", () => {
     expect(page).toContain("Delete preview");
   });
 
-  it("note a mode change and an empty new file, which have no hunks", async () => {
+  it("note a mode change, an empty new file, and a binary new file, which have no hunks", async () => {
     const created = await createPreview("/repos/alice/pages-modes/pulls", {
       title: "Modes",
       head: "feature",
@@ -277,6 +277,10 @@ describe("preview pages", () => {
         "diff --git a/empty.txt b/empty.txt",
         "new file mode 100644",
         "index 0000000..e69de29",
+        "diff --git a/logo.png b/logo.png",
+        "new file mode 100644",
+        "index 0000000..3b18e51",
+        "Binary files /dev/null and b/logo.png differ",
         "",
       ].join("\n"),
     });
@@ -284,7 +288,9 @@ describe("preview pages", () => {
       await getPage(new URL(created.html_url).pathname, await sessionCookie())
     ).text();
     expect(page).toContain("File mode changed from 100644 to 100755");
-    expect(page).toContain("Empty file added");
+    // Only empty.txt is empty: logo.png has no hunks because it is binary.
+    expect(page.match(/Empty file added/g)).toHaveLength(1);
+    expect(page).toContain("File added with no text lines, such as a binary file");
   });
 
   it("show a non-ASCII file name that Git quoted with octal escapes as text", async () => {
