@@ -35,18 +35,22 @@ The scripts need `gh` and `jq`. Point them at your instance, and pass the `PRE_G
 export PRE_GITHUB_HOST=pre-github.<account>.workers.dev
 ```
 
+Run the scripts in the directory of your own project, the one whose branch or issue you want to preview, and call them by the path of your pre-github checkout (`<path-to-pre-github>` below, such as the clone from Self-hosting). They read the branch, the diff, and the `origin` remote from the current directory.
+
 Create a preview of a pull request from the current branch (`git diff <base>...HEAD` is sent as the diff):
 
 ```sh
-GH_ENTERPRISE_TOKEN=<token> scripts/preview-pr.sh --title "Add leak highlight" --body-file body.md \
-  [--base origin/main] [--owner <owner>] [--repo <repo>]
+cd <your-project>
+GH_ENTERPRISE_TOKEN=<token> <path-to-pre-github>/scripts/preview-pr.sh --title "Add leak highlight" \
+  --body-file body.md [--base origin/main] [--owner <owner>] [--repo <repo>]
 ```
 
 Create a preview of an issue:
 
 ```sh
-GH_ENTERPRISE_TOKEN=<token> scripts/preview-issue.sh --title "Example" --body-file body.md \
-  [--owner <owner>] [--repo <repo>]
+cd <your-project>
+GH_ENTERPRISE_TOKEN=<token> <path-to-pre-github>/scripts/preview-issue.sh --title "Example" \
+  --body-file body.md [--owner <owner>] [--repo <repo>]
 ```
 
 `--owner` and `--repo` default to the `origin` remote. Each script prints the `html_url` of the preview, and exits 1 with the reason on stderr when the token is missing, the branch has no changes, or the API returns an error. `--help` lists the options.
