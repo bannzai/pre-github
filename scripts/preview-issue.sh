@@ -5,6 +5,7 @@ set -euo pipefail
 
 . "$(dirname "$0")/lib/preview.sh"
 
+# Prints the options and environment variables to stdout.
 usage() {
   cat <<'EOF'
 Usage: scripts/preview-issue.sh --title <title> [--body-file <file>] [--owner <owner>] [--repo <repo>]
