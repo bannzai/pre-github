@@ -54,11 +54,11 @@ const patchedPreviewCondition = `${previewAddressCondition}
 const maxTextBytes = 1_000_000;
 
 /**
- * The largest total of a preview's text columns, in bytes. D1 rejects rows over 2,000,000 bytes
- * (https://developers.cloudflare.com/d1/platform/limits/); the remaining 10,000 bytes cover the
- * numbers, timestamps, `kind`, `state`, and SQLite's record header.
+ * The largest total of a preview's text columns, in bytes. .claude/rules/d1-database.md limits a
+ * row to 1 MB (stricter than D1's documented 2,000,000 bytes); the remaining 10,000 bytes cover
+ * the numbers, timestamps, `kind`, `state`, and SQLite's record header.
  */
-const maxPreviewTextBytes = 1_990_000;
+const maxPreviewTextBytes = 990_000;
 
 /** The HTML page of a preview on this instance (the pages themselves are a separate change). */
 function previewHtmlUrl(
@@ -105,7 +105,7 @@ function commentJson(
 
 /**
  * The most request body bytes read before parsing. Text at `maxPreviewTextBytes` escaped as
- * `\uXXXX` throughout takes about 11,940,000 bytes of JSON; this leaves room for the other
+ * `\uXXXX` throughout takes about 5,940,000 bytes of JSON; this leaves room for the other
  * fields while keeping parsing far below the Worker's 128 MB memory limit.
  */
 const maxRequestBytes = 16_000_000;

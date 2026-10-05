@@ -52,7 +52,7 @@ pre-github speaks a subset of the GitHub REST API. The goal is that `gh api --ho
 - Storage is Cloudflare D1 only. Schema and migrations live in `migrations/` (`.claude/rules/d1-database.md`).
 - Tables hold previews (issues and pull requests share numbering per `{owner}/{repo}`, as on GitHub), comments, and `events` (`kind` is `created` / `updated` / `deleted`, with the timestamp only; no title or body). `events` is the measurement source in DIRECTION.md.
 - Deletion is a hard delete. Nothing is kept after `DELETE` except the `events` row. Because no counter survives, deleting the newest preview of a `{owner}/{repo}` lets the next preview reuse its number.
-- A `body` or `diff` over 1,000,000 bytes is rejected with 422, and so is a preview whose text columns together exceed 1,990,000 bytes (D1 rejects rows over 2,000,000 bytes).
+- A `body` or `diff` over 1,000,000 bytes is rejected with 422, and so is a preview whose text columns together exceed 990,000 bytes (`.claude/rules/d1-database.md` limits a row to 1 MB).
 - List responses carry GitHub's `Link: <...>; rel="next"` header when another page exists, so `gh api --paginate` reads every page.
 - Images are referenced by URL. Uploads are out of scope for the MVP.
 

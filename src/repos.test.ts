@@ -311,23 +311,23 @@ describe("validation", () => {
 
   it("answers 422 when a preview's text exceeds the row limit", async () => {
     const tooLarge = {
-      message: "the preview is larger than 1990000 bytes in total",
+      message: "the preview is larger than 990000 bytes in total",
       documentation_url: "https://docs.github.com/rest",
     };
     const pullsPath = "/repos/alice/row-limit/pulls";
-    const halfOfRow = "a".repeat(1_000_000);
+    const overHalfOfRow = "a".repeat(600_000);
     const created = await api(pullsPath, {
       method: "POST",
-      json: { title: "T", head: "feature", base: "main", body: halfOfRow, diff: halfOfRow },
+      json: { title: "T", head: "feature", base: "main", body: overHalfOfRow, diff: overHalfOfRow },
     });
     expect(created.status).toBe(422);
     expect(await created.json()).toEqual(tooLarge);
 
     await api(pullsPath, {
       method: "POST",
-      json: { title: "T", head: "feature", base: "main", diff: halfOfRow },
+      json: { title: "T", head: "feature", base: "main", diff: overHalfOfRow },
     });
-    const patched = await api(`${pullsPath}/1`, { method: "PATCH", json: { body: halfOfRow } });
+    const patched = await api(`${pullsPath}/1`, { method: "PATCH", json: { body: overHalfOfRow } });
     expect(patched.status).toBe(422);
     expect(await patched.json()).toEqual(tooLarge);
     const smaller = await api(`${pullsPath}/1`, { method: "PATCH", json: { body: "fits" } });
