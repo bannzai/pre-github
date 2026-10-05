@@ -94,6 +94,21 @@ describe("page login", () => {
     expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
+  it.each([
+    ["multipart/form-data", "token=x"],
+    ["multipart/form-data; boundary=missing", "token=x"],
+  ])("answers 400, not 500, to an unparsable login form sent as %s", async (contentType, body) => {
+    const response = await SELF.fetch(`${origin}/login`, {
+      method: "POST",
+      headers: { "Content-Type": contentType },
+      body,
+      redirect: "manual",
+    });
+    expect(response.status).toBe(400);
+    expect(response.headers.get("Content-Type")).toContain("text/html");
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+  });
+
   it("sets an HttpOnly, Secure, SameSite=Lax session cookie for the right token and returns to next", async () => {
     const created = await createPreview("/repos/alice/pages-login/issues", {
       title: "Visible after login",
