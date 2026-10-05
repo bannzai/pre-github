@@ -164,7 +164,8 @@ const englishList = new Intl.ListFormat("en", { type: "conjunction" });
  * (src/leaks.ts) the page marked, by kind, or what was searched when none were found.
  * `commentCount` is the preview's number of comments. `diffSearch` is whether the added lines of
  * a pull request's diff were searched, or could not be because the stored diff could not be read
- * (an unsearched diff is never reported as free of leaks), or there is no diff (an issue).
+ * (an unsearched diff is never reported as free of leaks), or there is no diff (an issue, or a
+ * pull request sent without one).
  */
 function leakBanner(
   leakCounts: LeakCounts,
@@ -472,9 +473,9 @@ function previewPage(preview: PreviewRow & { diff: string | null }, comments: Co
   const filesPart = preview.kind === "pull" ? filesSection(files, preview.diff, leakCounts) : "";
   // A stored diff that parses into no file is one `filesSection` says could not be read.
   const diffSearch =
-    preview.kind === "issue"
+    preview.kind === "issue" || !preview.diff?.trim()
       ? "none"
-      : files.length === 0 && preview.diff?.trim()
+      : files.length === 0
         ? "unreadable"
         : "searched";
   return htmlDocument(

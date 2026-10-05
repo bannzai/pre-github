@@ -257,6 +257,38 @@ describe("preview pages", () => {
     expect(page).toContain('<a href="mailto:someone@example.com">someone@example.com</a>');
   });
 
+  it("mark each possible leak of a link's or an image's address, title, and alt text", async () => {
+    const created = await createPreview("/repos/alice/pages-hidden-leaks/issues", {
+      title: "Hidden leaks",
+      body: [
+        '[log](https://h.invalid/?p=/Users/alice&m=bob@corp.invalid "Ask carol@corp.invalid")',
+        "",
+        "![03-0000-0000](https://i.invalid/a.png)",
+      ].join("\n"),
+    });
+    const page = await (
+      await getPage(new URL(created.html_url).pathname, await sessionCookie())
+    ).text();
+    expect(page).toContain("4 possible leaks found in this preview");
+    expect(page).toContain("1 phone number · 2 email addresses · 1 home directory path");
+    expect(page.match(/<mark /g)).toHaveLength(4);
+    expect(page.match(/<\/mark>/g)).toHaveLength(4);
+  });
+
+  it("not claim to have checked the diff of a pull request sent without one", async () => {
+    const created = await createPreview("/repos/alice/pages-no-diff/pulls", {
+      title: "No diff",
+      head: "feature",
+      base: "main",
+    });
+    const page = await (
+      await getPage(new URL(created.html_url).pathname, await sessionCookie())
+    ).text();
+    expect(page).toContain("No possible leaks found");
+    expect(page).toContain("Checked the body and 0 comments for");
+    expect(page).not.toContain("the added lines of the diff");
+  });
+
   it("mark the possible leaks of added lines only, not of removed or unchanged lines", async () => {
     const created = await createPreview("/repos/alice/pages-diff-leaks/pulls", {
       title: "Diff leaks",

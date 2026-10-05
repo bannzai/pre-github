@@ -1,6 +1,6 @@
 import { tasklist } from "@mdit/plugin-tasklist";
 import MarkdownIt, { type Env, type Token } from "markdown-it";
-import { findLeaks, leakMarkStart, markLeaks, type LeakCounts } from "./leaks";
+import { findLeaks, leakMarkStart, markLeaks, type LeakCounts, type LeakKind } from "./leaks";
 
 /**
  * The GitHub Flavored Markdown renderer of the pages (documents/PROJECT.md, HTML pages). The
@@ -41,9 +41,10 @@ function leakCountsOf(env: Env | undefined): LeakCounts {
 
 // Possible leaks are searched in the text markdown-it is about to escape, never in the HTML it
 // wrote, so that a mark cannot split a tag or an entity. Text, inline code, and code blocks mark
-// each match. A link target or an image address is not shown, so the whole link or image is
-// marked when its `href` or `src` holds a leak; a link whose text is its target (an autolink) is
-// left to its text. Image alt text and link titles are not searched.
+// each match. A link's or an image's address and title, and an image's alt text, are not shown as
+// text, so the whole link or image is wrapped in one `<mark>` per possible leak they hold; a link
+// whose text is its address (an autolink) is left to its text. A link reference definition that
+// no link uses is not rendered and not searched.
 markdown.renderer.rules.text = (tokens, index, _options, env) =>
   markLeaks(tokens[index]!.content, leakCountsOf(env));
 markdown.renderer.rules.code_inline = (tokens, index, _options, env, renderer) =>
@@ -59,40 +60,45 @@ markdown.renderer.rules.fence = (tokens, index, options, env, renderer) => {
 };
 
 /**
- * The start tag of the `<mark>` around a link or an image whose address `attribute` of `token`
- * holds possible leaks, or `""` when it holds none. Adds those leaks to the counts of `env`. The
- * address is searched decoded, since markdown-it percent-encodes it (`/Users/太郎` would
- * otherwise not read as a home directory path).
+ * The kinds of the possible leaks that `token`, a link or an image, holds outside its text: in
+ * its address `attribute`, its title, and an image's alt text, one entry per leak. None for an
+ * autolink. Adds them to the counts of `env`. The address is searched decoded, since markdown-it
+ * percent-encodes it (`/Users/太郎` would otherwise not read as a home directory path).
  */
-function addressLeakMarkStart(token: Token, attribute: "href" | "src", env: Env | undefined) {
-  const leaks =
-    token.info === "auto"
-      ? []
-      : findLeaks(markdown.normalizeLinkText(String(token.attrGet(attribute) ?? "")));
-  for (const leak of leaks) leakCountsOf(env)[leak.kind] += 1;
-  return leaks.length === 0 ? "" : leakMarkStart(leaks.map((leak) => leak.kind));
+function hiddenLeakKinds(
+  token: Token,
+  attribute: "href" | "src",
+  env: Env | undefined,
+): LeakKind[] {
+  if (token.info === "auto") return [];
+  const kinds = [
+    markdown.normalizeLinkText(String(token.attrGet(attribute) ?? "")),
+    String(token.attrGet("title") ?? ""),
+    token.type === "image" ? token.content : "",
+  ].flatMap((hiddenText) => findLeaks(hiddenText).map((leak) => leak.kind));
+  for (const kind of kinds) leakCountsOf(env)[kind] += 1;
+  return kinds;
 }
 
 /** markdown-it's own image rule, which the rule below wraps. */
 const renderImage = markdown.renderer.rules.image!;
 markdown.renderer.rules.image = (tokens, index, options, env, renderer) => {
-  const markStart = addressLeakMarkStart(tokens[index]!, "src", env);
-  const image = renderImage(tokens, index, options, env, renderer);
-  return markStart ? `${markStart}${image}</mark>` : image;
+  const kinds = hiddenLeakKinds(tokens[index]!, "src", env);
+  return `${kinds.map(leakMarkStart).join("")}${renderImage(tokens, index, options, env, renderer)}${"</mark>".repeat(kinds.length)}`;
 };
 markdown.renderer.rules.link_open = (tokens, index, options, env, renderer) => {
-  const markStart = addressLeakMarkStart(tokens[index]!, "href", env);
-  // Links do not nest, so the first `link_close` after this token closes this link and the mark.
-  for (let later = index + 1; markStart && later < tokens.length; later += 1) {
+  const kinds = hiddenLeakKinds(tokens[index]!, "href", env);
+  // Links do not nest, so the first `link_close` after this token closes this link and its marks.
+  for (let later = index + 1; kinds.length > 0 && later < tokens.length; later += 1) {
     if (tokens[later]!.type === "link_close") {
-      tokens[later]!.meta = { closesLeakMark: true };
+      tokens[later]!.meta = { leakMarkCount: kinds.length };
       break;
     }
   }
-  return `${markStart}${renderer.renderToken(tokens, index, options)}`;
+  return `${kinds.map(leakMarkStart).join("")}${renderer.renderToken(tokens, index, options)}`;
 };
 markdown.renderer.rules.link_close = (tokens, index, options, _env, renderer) =>
-  `${renderer.renderToken(tokens, index, options)}${tokens[index]!.meta?.closesLeakMark ? "</mark>" : ""}`;
+  `${renderer.renderToken(tokens, index, options)}${"</mark>".repeat(tokens[index]!.meta?.leakMarkCount ?? 0)}`;
 
 /**
  * The HTML of `text` rendered as GitHub Flavored Markdown, safe to insert into a page, with each

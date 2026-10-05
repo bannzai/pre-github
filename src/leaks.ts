@@ -145,9 +145,9 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (character) => htmlEntities[character] ?? character);
 }
 
-/** The start tag of the `<mark>` around possible leaks of `kinds`, titled with their names. */
-export function leakMarkStart(kinds: LeakKind[]): string {
-  return `<mark title="Possible ${[...new Set(kinds)].map((kind) => leakKindNames[kind][0]).join(", ")}">`;
+/** The start tag of the `<mark>` around one possible leak of `kind`, titled with its name. */
+export function leakMarkStart(kind: LeakKind): string {
+  return `<mark title="Possible ${leakKindNames[kind][0]}">`;
 }
 
 /**
@@ -160,7 +160,7 @@ export function markLeaks(text: string, leakCounts: LeakCounts): string {
   for (const leak of findLeaks(text)) {
     leakCounts[leak.kind] += 1;
     markedHtml += escapeHtml(text.slice(position, leak.start));
-    markedHtml += `${leakMarkStart([leak.kind])}${escapeHtml(text.slice(leak.start, leak.end))}</mark>`;
+    markedHtml += `${leakMarkStart(leak.kind)}${escapeHtml(text.slice(leak.start, leak.end))}</mark>`;
     position = leak.end;
   }
   return markedHtml + escapeHtml(text.slice(position));
