@@ -5,3 +5,5 @@ playwright-report
 .wrangler
 package-lock.json
 *.md
+# Design canvas files are kept exactly as published (documents/design/README.md)
+documents/design
