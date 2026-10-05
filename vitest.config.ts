@@ -11,7 +11,8 @@ export default defineConfig(async () => {
       cloudflareTest({
         wrangler: { configPath: "./wrangler.jsonc" },
         miniflare: {
-          bindings: { TEST_MIGRATIONS: migrations },
+          // PRE_GITHUB_TOKEN is the only credential of the Worker under test. Not a real token.
+          bindings: { TEST_MIGRATIONS: migrations, PRE_GITHUB_TOKEN: "test-token" },
         },
       }),
     ],
