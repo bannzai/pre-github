@@ -57,7 +57,8 @@ gh pr create --title "Add leak highlight" --body-file body.md [--base <branch>] 
 gh issue create --title "Example" --body-file body.md [--repo <owner>/<repo>]
 ```
 
-When the preview used `--base`, `--owner`, or `--repo`, pass the same branch to `--base` (a branch name such as `main`, not `origin/main`) and the same `<owner>/<repo>` to `--repo`, so the real GitHub gets the diff and repository you reviewed. `PRE_GITHUB_HOST` cannot be `github.com`; the scripts refuse it so a preview never goes to the real GitHub.
+When the preview used `--base`, `--owner`, or `--repo`, pass the same branch to `--base` (a branch name such as `main`, not `origin/main`) and the same `<owner>/<repo>` to `--repo`, so the real GitHub gets the diff and repository you reviewed. The scripts refuse a `PRE_GITHUB_HOST` of `github.com`, `ghe.com`, or a subdomain of either, which `gh` would send to the real GitHub.
+<!-- source: https://github.com/cli/go-gh/blob/trunk/pkg/auth/auth.go : NormalizeHostname returns github.com for any host ending in .github.com, and IsTenancy treats hosts ending in .ghe.com as GitHub-hosted tenants, not enterprise hosts -->
 
 Or call the API directly:
 

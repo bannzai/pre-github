@@ -96,6 +96,16 @@ assert_equal "pr: head" "$(sent .head)" feature
 assert_equal "pr: base" "$(sent .base)" main
 assert_equal "pr: diff" "$(jq --rawfile expected "$work/expected.diff" '.diff == $expected' "$work/input.json")" true
 
+# The diff keeps the a/ b/ format under a user's diff.noprefix and diff.mnemonicPrefix
+git -C "$repo" config diff.noprefix true
+git -C "$repo" config diff.mnemonicPrefix true
+run "$scripts_dir/preview-pr.sh" --title "No prefix config"
+assert_equal "pr with diff prefix config: status" "$status" 0
+assert_equal "pr with diff prefix config: diff" \
+  "$(jq --rawfile expected "$work/expected.diff" '.diff == $expected' "$work/input.json")" true
+git -C "$repo" config --unset diff.noprefix
+git -C "$repo" config --unset diff.mnemonicPrefix
+
 # Pull request with explicit base, owner, and repo, and no body file
 run "$scripts_dir/preview-pr.sh" --title "Explicit" --base main --owner other-owner --repo other-repo
 assert_equal "pr explicit: status" "$status" 0
@@ -113,10 +123,12 @@ run env PRE_GITHUB_HOST= "$scripts_dir/preview-pr.sh" --title "No host"
 assert_equal "pr without host: status" "$status" 1
 assert_contains "pr without host: reason" "$err" "PRE_GITHUB_HOST is not set"
 
-run env PRE_GITHUB_HOST=GitHub.com "$scripts_dir/preview-pr.sh" --title "Real GitHub"
-assert_equal "pr to github.com: status" "$status" 1
-assert_contains "pr to github.com: reason" "$err" "not github.com"
-assert_equal "pr to github.com: gh is not called" "$(cat "$work/args")" ""
+for host in GitHub.com api.github.com github.com. example.ghe.com; do
+  run env PRE_GITHUB_HOST="$host" "$scripts_dir/preview-pr.sh" --title "Real GitHub"
+  assert_equal "pr to $host: status" "$status" 1
+  assert_contains "pr to $host: reason" "$err" "not a GitHub host"
+  assert_equal "pr to $host: gh is not called" "$(cat "$work/args")" ""
+done
 
 run env PRE_GITHUB_HOST=github.com "$scripts_dir/preview-issue.sh" --title "Real GitHub"
 assert_equal "issue to github.com: status" "$status" 1
