@@ -114,6 +114,8 @@ test("an issue page renders GitHub Flavored Markdown and escapes raw HTML", asyn
   await expect(body.getByText("<b>not bold</b>")).toBeVisible();
   await expect(body.locator("script, b")).toHaveCount(0);
   await expect(page.getByText("Looks the same as it will on GitHub")).toBeVisible();
+  await expect(page.locator(".leak-banner")).toContainText("No possible leaks found");
+  await expect(page.locator("mark")).toHaveCount(0);
   expect(dialogOpened).toBe(false);
   await page.screenshot({ path: testInfo.outputPath("issue.png"), fullPage: true });
 
@@ -171,6 +173,81 @@ test("a pull request page lists the files and colors added and removed lines", a
   await expect(addition).toHaveCSS("background-color", "rgb(218, 251, 225)");
   await expect(deletion).toHaveCSS("background-color", "rgb(255, 235, 233)");
   await page.screenshot({ path: testInfo.outputPath("pull.png"), fullPage: true });
+});
+
+test("an issue page counts the possible leaks of its body and comments and marks each one", async ({
+  page,
+  request,
+}, testInfo) => {
+  // Made-up values. The token is built at run time so that no token-shaped string is committed.
+  const fakeGitHubToken = `ghp_${"A1b2C3d4E5".repeat(3)}F6g7H8`;
+  const pagePath = await createPreview(request, "/repos/e2e/leaks/issues", {
+    title: "Contact details slipped into the body",
+    body: [
+      "Reach the reviewer at 03-0000-0000 or alice@corp.invalid.",
+      "",
+      "Reproduced in `/Users/alice/worktrees/demo`.",
+      "",
+      "Not leaks: someone@example.com, ISBN 978-4-87311-565-8, 2026-10-06T12:34:56Z.",
+    ].join("\n"),
+  });
+  await request.post(`/repos/e2e/leaks/issues/${pagePath.split("/").at(-1)}/comments`, {
+    data: { body: `Use this token: ${fakeGitHubToken}` },
+    headers: { Authorization: `token ${token}` },
+  });
+
+  await signIn(page, pagePath);
+  const banner = page.locator(".leak-banner");
+  await expect(banner).toContainText("4 possible leaks found in this preview");
+  await expect(banner).toContainText(
+    "1 phone number · 1 email address · 1 home directory path · 1 API-key-looking string",
+  );
+  const marks = page.locator("mark");
+  await expect(marks).toHaveText([
+    "03-0000-0000",
+    "alice@corp.invalid",
+    "/Users/alice/worktrees/demo",
+    fakeGitHubToken,
+  ]);
+  // The highlight yellow of the gate 2 mockups.
+  await expect(marks.first()).toHaveCSS("background-color", "rgb(255, 248, 197)");
+  await page.screenshot({ path: testInfo.outputPath("leaks-issue.png"), fullPage: true });
+});
+
+test("a pull request page marks the possible leaks of added lines only", async ({
+  page,
+  request,
+}, testInfo) => {
+  const pagePath = await createPreview(request, "/repos/e2e/leaks/pulls", {
+    title: "Point the deploy at the new owner",
+    body: "Nothing personal in the body.",
+    head: "feature/deploy-owner",
+    base: "main",
+    diff: [
+      "diff --git a/deploy.env b/deploy.env",
+      "index 3b18e51..a1b2c3d 100644",
+      "--- a/deploy.env",
+      "+++ b/deploy.env",
+      "@@ -1,2 +1,3 @@",
+      " REGION=ap-northeast-1",
+      "-OWNER=bob@corp.invalid",
+      "+OWNER=carol@corp.invalid",
+      "+KEY_PATH=/home/carol/.ssh/id_ed25519",
+      "",
+    ].join("\n"),
+  });
+
+  await signIn(page, pagePath);
+  const banner = page.locator(".leak-banner");
+  await expect(banner).toContainText("2 possible leaks found in this preview");
+  await expect(banner).toContainText("1 email address · 1 home directory path");
+  await expect(page.locator("tr.diff-line-addition mark")).toHaveText([
+    "carol@corp.invalid",
+    "/home/carol/.ssh/id_ed25519",
+  ]);
+  await expect(page.locator("tr.diff-line-deletion mark")).toHaveCount(0);
+  await expect(page.locator("mark")).toHaveCount(2);
+  await page.screenshot({ path: testInfo.outputPath("leaks-pull.png"), fullPage: true });
 });
 
 test("the delete button removes the preview and its page answers 404 afterwards", async ({

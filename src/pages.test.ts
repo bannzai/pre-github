@@ -198,6 +198,80 @@ describe("preview pages", () => {
     expect(page).toContain("&lt;script&gt;alert(&quot;raw&quot;)&lt;/script&gt;");
     expect(page).not.toContain("<script>");
     expect(page).not.toContain('href="javascript:');
+    expect(page).toContain("No possible leaks found");
+    expect(page).toContain(
+      "Checked the body and 0 comments for phone numbers, email addresses, home directory paths, and API-key-looking strings",
+    );
+    expect(page).not.toContain("<mark");
+  });
+
+  it("count and mark the possible leaks of the body and the comments", async () => {
+    // Made-up values. The token is built at run time so that no token-shaped string is committed.
+    const fakeGitHubToken = `ghp_${"A1b2C3d4E5".repeat(3)}F6g7H8`;
+    const created = await createPreview("/repos/alice/pages-leaks/issues", {
+      title: "Leaks",
+      body: [
+        "Call 03-0000-0000 or mail alice@corp.invalid.",
+        "",
+        "Run it in `/Users/alice/worktrees/demo`.",
+        "",
+        "![shot](/Users/alice/Desktop/shot.png)",
+        "",
+        "Not leaks: someone@example.com, ISBN 978-4-87311-565-8, 2026-10-06T12:34:56Z.",
+      ].join("\n"),
+    });
+    await SELF.fetch(`${origin}/repos/alice/pages-leaks/issues/${created.number}/comments`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.PRE_GITHUB_TOKEN}` },
+      body: JSON.stringify({ body: `token: ${fakeGitHubToken}` }),
+    });
+    const page = await (
+      await getPage(new URL(created.html_url).pathname, await sessionCookie())
+    ).text();
+    expect(page).toContain("5 possible leaks found in this preview");
+    expect(page).toContain(
+      "1 phone number · 1 email address · 2 home directory paths · 1 API-key-looking string",
+    );
+    expect(page.match(/<mark /g)).toHaveLength(5);
+    expect(page).toContain('<mark title="Possible phone number">03-0000-0000</mark>');
+    expect(page).toContain('<mark title="Possible email address">alice@corp.invalid</mark>.');
+    expect(page).toContain(
+      '<code><mark title="Possible home directory path">/Users/alice/worktrees/demo</mark></code>',
+    );
+    // An image's address is not shown, so the whole image is marked.
+    expect(page).toContain(
+      '<mark title="Possible home directory path"><img src="/Users/alice/Desktop/shot.png" alt="shot"></mark>',
+    );
+    expect(page).toContain(
+      `<mark title="Possible API-key-looking string">${fakeGitHubToken}</mark>`,
+    );
+    expect(page).toContain('<a href="mailto:someone@example.com">someone@example.com</a>');
+  });
+
+  it("mark the possible leaks of added lines only, not of removed or unchanged lines", async () => {
+    const created = await createPreview("/repos/alice/pages-diff-leaks/pulls", {
+      title: "Diff leaks",
+      head: "feature",
+      base: "main",
+      diff: [
+        "diff --git a/.env b/.env",
+        "--- a/.env",
+        "+++ b/.env",
+        "@@ -1,2 +1,2 @@",
+        " HOME=/home/alice",
+        "-MAIL=bob@corp.invalid",
+        "+MAIL=carol@corp.invalid",
+        "",
+      ].join("\n"),
+    });
+    const page = await (
+      await getPage(new URL(created.html_url).pathname, await sessionCookie())
+    ).text();
+    expect(page).toContain("1 possible leak found in this preview");
+    expect(page.match(/<mark /g)).toHaveLength(1);
+    expect(page).toContain('+MAIL=<mark title="Possible email address">carol@corp.invalid</mark>');
+    expect(page).toContain("-MAIL=bob@corp.invalid");
+    expect(page).toContain(" HOME=/home/alice");
   });
 
   it("render the comments of an issue", async () => {
