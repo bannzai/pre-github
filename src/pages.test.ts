@@ -155,6 +155,8 @@ describe("preview pages", () => {
         "",
         "Update README.md and main.py, then read www.example.com/guide.",
         "",
+        "Mail someone@example.com, not //README.md or ftp://example.com/file.",
+        "",
         '<script>alert("raw")</script>',
         "",
         "[click](javascript:alert(1))",
@@ -175,6 +177,9 @@ describe("preview pages", () => {
     // GitHub links neither file names nor hosts without `www.` or a scheme.
     expect(page).toContain("Update README.md and main.py, then read");
     expect(page).toContain('<a href="http://www.example.com/guide">www.example.com/guide</a>.');
+    expect(page).toContain('<a href="mailto:someone@example.com">someone@example.com</a>');
+    expect(page).not.toContain('href="//README.md"');
+    expect(page).not.toContain('href="ftp:');
     expect(page).toContain("&lt;script&gt;alert(&quot;raw&quot;)&lt;/script&gt;");
     expect(page).not.toContain("<script>");
     expect(page).not.toContain('href="javascript:');
@@ -230,6 +235,19 @@ describe("preview pages", () => {
     expect(page).toContain('class="diff-line-deletion"');
     expect(page).toContain("+&lt;img src=x onerror=alert(1)&gt;");
     expect(page).toContain('<code class="branch">feature</code>');
+  });
+
+  it("say so when a pull request's diff is not a unified diff", async () => {
+    const created = await createPreview("/repos/alice/pages-unreadable/pulls", {
+      title: "Not a diff",
+      head: "feature",
+      base: "main",
+      diff: "this is not a unified diff",
+    });
+    const page = await (
+      await getPage(new URL(created.html_url).pathname, await sessionCookie())
+    ).text();
+    expect(page).toContain("The stored diff could not be read as a unified diff");
   });
 
   it("show a non-ASCII file name that Git quoted with octal escapes as text", async () => {

@@ -230,8 +230,11 @@ function diffLine(change: parseDiff.Change): PageHtml {
   }
 }
 
-/** The "Files changed" part of a pull request page: the file list, then each file's diff. */
-function filesSection(files: parseDiff.File[]): PageHtml {
+/**
+ * The "Files changed" part of a pull request page: the file list, then each file's diff.
+ * `files` is `storedDiff` (the `diff` column) as parsed.
+ */
+function filesSection(files: parseDiff.File[], storedDiff: string | null): PageHtml {
   const total = files.reduce(
     (sum, file) => ({
       additions: sum.additions + file.additions,
@@ -246,7 +249,13 @@ function filesSection(files: parseDiff.File[]): PageHtml {
     </div>
     ${
       files.length === 0
-        ? html`<p class="blankslate">This preview has no diff</p>`
+        ? html`<p class="blankslate">
+            ${
+              storedDiff?.trim()
+                ? "The stored diff could not be read as a unified diff"
+                : "This preview has no diff"
+            }
+          </p>`
         : html`<ul class="file-list">
               ${files.map(
                 (file, index) =>
@@ -321,7 +330,7 @@ function previewPage(preview: PreviewRow & { diff: string | null }, comments: Co
               </article>`,
           )}
         </section>
-        ${preview.kind === "pull" ? filesSection(files) : ""}
+        ${preview.kind === "pull" ? filesSection(files, preview.diff) : ""}
         <footer class="send-hint">
           <span>When it looks right, send the same title and body to GitHub:</span>
           <code
