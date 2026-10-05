@@ -90,12 +90,39 @@ function commentJson(
   };
 }
 
-/** The request's JSON body when it is a JSON object, or undefined when it is not. */
-async function readJsonObject(request: Request): Promise<Record<string, unknown> | undefined> {
-  const parsed: unknown = await request.json().catch(() => undefined);
-  return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-    ? (parsed as Record<string, unknown>)
-    : undefined;
+/**
+ * The most request body bytes read before parsing. Text at `maxPreviewTextBytes` escaped as
+ * `\uXXXX` throughout takes about 11,940,000 bytes of JSON; this leaves room for the other
+ * fields while keeping parsing far below the Worker's 128 MB memory limit.
+ */
+const maxRequestBytes = 16_000_000;
+
+/**
+ * The request's JSON body when it is a JSON object, or the error response to answer instead:
+ * 422 when the body exceeds `maxRequestBytes` (rejected before parsing), 400 when it is not a
+ * JSON object.
+ */
+async function readJsonObject(request: Request): Promise<Record<string, unknown> | Response> {
+  const chunks: Uint8Array[] = [];
+  let receivedBytes = 0;
+  const reader = request.body?.getReader();
+  for (let chunk = await reader?.read(); chunk && !chunk.done; chunk = await reader?.read()) {
+    receivedBytes += chunk.value.byteLength;
+    if (receivedBytes > maxRequestBytes) {
+      await reader?.cancel();
+      return githubError(422, `the request body is larger than ${maxRequestBytes} bytes`);
+    }
+    chunks.push(chunk.value);
+  }
+  try {
+    const parsed: unknown = JSON.parse(await new Blob(chunks).text());
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Not JSON: answered below like a JSON value that is not an object.
+  }
+  return githubError(400, "Problems parsing JSON");
 }
 
 /**
@@ -204,7 +231,7 @@ async function createPreview(
   scope: PreviewScope,
 ): Promise<Response> {
   const fields = await readJsonObject(request);
-  if (!fields) return githubError(400, "Problems parsing JSON");
+  if (fields instanceof Response) return fields;
   const problem = fieldsProblem(
     fields,
     scope.kind === "pull" ? ["title", "head", "base"] : ["title"],
@@ -263,7 +290,11 @@ async function listPreviews(
     )
     .bind(scope.owner, scope.repo, scope.kind, state, page.limit + 1, page.offset)
     .all<PreviewRow>();
-  return listResponse(url, page, results.map((preview) => previewJson(url.origin, preview)));
+  return listResponse(
+    url,
+    page,
+    results.map((preview) => previewJson(url.origin, preview)),
+  );
 }
 
 /**
@@ -309,7 +340,7 @@ async function updatePreview(
   address: PreviewAddress,
 ): Promise<Response> {
   const fields = await readJsonObject(request);
-  if (!fields) return githubError(400, "Problems parsing JSON");
+  if (fields instanceof Response) return fields;
   const problem = fieldsProblem(fields, []);
   if (problem) return githubError(422, problem);
   const stored = await db
@@ -417,7 +448,7 @@ async function createComment(
   path: CommentPath,
 ): Promise<Response> {
   const fields = await readJsonObject(request);
-  if (!fields) return githubError(400, "Problems parsing JSON");
+  if (fields instanceof Response) return fields;
   const problem = fieldsProblem(fields, ["body"]);
   if (problem) return githubError(422, problem);
   const [target, inserted] = await db.batch([

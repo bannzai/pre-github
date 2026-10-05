@@ -319,6 +319,19 @@ describe("validation", () => {
     expect(smaller.status).toBe(200);
   });
 
+  it("answers 422 before parsing a request body over 16,000,000 bytes", async () => {
+    const response = await SELF.fetch(`${origin}/repos/alice/validation/issues`, {
+      method: "POST",
+      headers: { Authorization: `token ${env.PRE_GITHUB_TOKEN}` },
+      body: "not json ".repeat(1_800_000),
+    });
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({
+      message: "the request body is larger than 16000000 bytes",
+      documentation_url: "https://docs.github.com/rest",
+    });
+  });
+
   it("answers 400 for a body that is not JSON", async () => {
     const response = await SELF.fetch(`${origin}/repos/alice/validation/issues`, {
       method: "POST",
