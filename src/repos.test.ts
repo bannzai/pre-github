@@ -288,7 +288,6 @@ describe("validation", () => {
     ["an issue without title", "issues", { body: "No title" }, "title is missing"],
     ["a pull request without head", "pulls", { title: "T", base: "main" }, "head is missing"],
     ["a non-string body", "issues", { title: "T", body: 1 }, "body must be a string"],
-    ["a bad state", "issues", { title: "T", state: "merged" }, "state must be open or closed"],
     [
       "a body over 1 MB",
       "issues",
@@ -346,6 +345,14 @@ describe("validation", () => {
       message: "the request body is larger than 16000000 bytes",
       documentation_url: "https://docs.github.com/rest",
     });
+  });
+
+  it("answers 422 for a PATCH with an unknown state", async () => {
+    const issuesPath = "/repos/alice/bad-state/issues";
+    await api(issuesPath, { method: "POST", json: { title: "T" } });
+    const patched = await api(`${issuesPath}/1`, { method: "PATCH", json: { state: "merged" } });
+    expect(patched.status).toBe(422);
+    expect(await patched.json()).toMatchObject({ message: "state must be open or closed" });
   });
 
   it("ignores fields the endpoint does not take, as GitHub does", async () => {
