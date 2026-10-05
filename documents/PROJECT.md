@@ -14,7 +14,7 @@ Why it exists, how success is judged, and the MVP feature list live in [DIRECTIO
      -f title='Add leak highlight' -F body=@body.md -f head=feature -f base=main -F diff=@changes.diff
    ```
 
-   or with `scripts/preview-pr.sh`, which builds `title`, `body`, and `diff` from the current branch.
+   or with `scripts/preview-pr.sh`, which builds `title`, `body`, `head`, `base`, and `diff` from the current branch (`scripts/preview-issue.sh` sends `title` and `body`). Each run creates a new preview. The scripts refuse a `PRE_GITHUB_HOST` of `github.com`, `ghe.com`, or a subdomain of either, because `gh` would send those requests to the real GitHub. <!-- source: https://github.com/cli/go-gh/blob/trunk/pkg/auth/auth.go : NormalizeHostname maps *.github.com to github.com, and IsTenancy treats *.ghe.com as GitHub-hosted -->
 3. Open the `html_url` in the response. The page renders the Markdown body and the diff the way GitHub does, and highlights strings that look like personal information or secrets.
 4. Fix the body and re-send, or delete the preview. When you are satisfied, send the same title and body to the real GitHub with `gh pr create` / `gh issue create`.
 
