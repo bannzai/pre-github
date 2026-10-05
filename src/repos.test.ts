@@ -183,8 +183,14 @@ describe("numbering", () => {
     for (const title of ["a", "b", "c"]) {
       await api(pagingPath, { method: "POST", json: { title } });
     }
-    const page = await getJson<{ title: string }[]>(`${pagingPath}?per_page=2&page=2`);
-    expect(page.map((issue) => issue.title)).toEqual(["a"]);
+    const first = await api(`/api/v3${pagingPath}?state=all&per_page=2`);
+    expect(await first.json()).toMatchObject([{ title: "c" }, { title: "b" }]);
+    const nextUrl = /^<(.+)>; rel="next"$/.exec(first.headers.get("Link") ?? "")?.[1];
+    expect(nextUrl).toBe(`${origin}/api/v3${pagingPath}?state=all&per_page=2&page=2`);
+
+    const last = await api(`${pagingPath}?per_page=2&page=2`);
+    expect(await last.json()).toMatchObject([{ title: "a" }]);
+    expect(last.headers.get("Link")).toBeNull();
   });
 });
 
@@ -286,6 +292,31 @@ describe("validation", () => {
       message,
       documentation_url: "https://docs.github.com/rest",
     });
+  });
+
+  it("answers 422 when a preview's text exceeds the row limit", async () => {
+    const tooLarge = {
+      message: "the preview is larger than 1990000 bytes in total",
+      documentation_url: "https://docs.github.com/rest",
+    };
+    const pullsPath = "/repos/alice/row-limit/pulls";
+    const halfOfRow = "a".repeat(1_000_000);
+    const created = await api(pullsPath, {
+      method: "POST",
+      json: { title: "T", head: "feature", base: "main", body: halfOfRow, diff: halfOfRow },
+    });
+    expect(created.status).toBe(422);
+    expect(await created.json()).toEqual(tooLarge);
+
+    await api(pullsPath, {
+      method: "POST",
+      json: { title: "T", head: "feature", base: "main", diff: halfOfRow },
+    });
+    const patched = await api(`${pullsPath}/1`, { method: "PATCH", json: { body: halfOfRow } });
+    expect(patched.status).toBe(422);
+    expect(await patched.json()).toEqual(tooLarge);
+    const smaller = await api(`${pullsPath}/1`, { method: "PATCH", json: { body: "fits" } });
+    expect(smaller.status).toBe(200);
   });
 
   it("answers 400 for a body that is not JSON", async () => {

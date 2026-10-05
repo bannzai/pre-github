@@ -37,11 +37,15 @@ type CommentRow = { id: number; body: string; created_at: string; updated_at: st
 /** The WHERE condition that selects the preview at `PreviewAddress`, bound as ?1 to ?4. */
 const previewAddressCondition = "owner = ?1 AND repo = ?2 AND number = ?3 AND kind = ?4";
 
-/**
- * D1 limits the size of a row (.claude/rules/d1-database.md). A body or diff above this many
- * bytes is refused with 422 instead of failing the insert or being truncated.
- */
+/** The largest `body` or `diff` accepted, in bytes (.claude/rules/d1-database.md). */
 const maxTextBytes = 1_000_000;
+
+/**
+ * The largest total of a preview's text columns, in bytes. D1 rejects rows over 2,000,000 bytes
+ * (https://developers.cloudflare.com/d1/platform/limits/); the remaining 10,000 bytes cover the
+ * numbers, timestamps, `kind`, `state`, and SQLite's record header.
+ */
+const maxPreviewTextBytes = 1_990_000;
 
 /** The HTML page of a preview on this instance (the pages themselves are a separate change). */
 function previewHtmlUrl(
@@ -112,7 +116,7 @@ function fieldsProblem(
     if (value === undefined || value === null) continue;
     if (typeof value !== "string") return `${name} must be a string`;
     if (value === "" && name !== "body" && name !== "diff") return `${name} must not be empty`;
-    if (new TextEncoder().encode(value).byteLength > maxTextBytes) {
+    if (byteLength(value) > maxTextBytes) {
       return `${name} is larger than ${maxTextBytes} bytes`;
     }
   }
@@ -121,6 +125,14 @@ function fieldsProblem(
   }
   return undefined;
 }
+
+/** The UTF-8 size of `text` in bytes, the unit D1 limits rows by. */
+function byteLength(text: string | null): number {
+  return text === null ? 0 : new TextEncoder().encode(text).byteLength;
+}
+
+/** The 422 message for a preview whose text columns together exceed `maxPreviewTextBytes`. */
+const previewTooLarge = `the preview is larger than ${maxPreviewTextBytes} bytes in total`;
 
 /** The string value of `fields[name]`, or null when it is absent (validated by `fieldsProblem`). */
 function textField(fields: Record<string, unknown>, name: string): string | null {
@@ -134,21 +146,52 @@ function positiveInteger(text: string | null): number | undefined {
   return value >= 1 ? value : undefined;
 }
 
-/** LIMIT and OFFSET for GitHub's `per_page` and `page` query parameters. */
-function listWindow(url: URL): { limit: number; offset: number } {
+/** The page of a list that GitHub's `per_page` and `page` query parameters ask for. */
+type ListPage = {
+  /** The page size: the SQL LIMIT. */
+  limit: number;
+  /** The rows before this page: the SQL OFFSET. */
+  offset: number;
+  /** The 1-based page number. */
+  page: number;
+};
+
+/** The `ListPage` of `url`. */
+function listPage(url: URL): ListPage {
   // GitHub's default (30) and maximum (100) page sizes for the list endpoints.
   const limit = Math.min(positiveInteger(url.searchParams.get("per_page")) ?? 30, 100);
-  return { limit, offset: ((positiveInteger(url.searchParams.get("page")) ?? 1) - 1) * limit };
+  // GitHub starts at the first page when `page` is absent.
+  const page = positiveInteger(url.searchParams.get("page")) ?? 1;
+  return { limit, offset: (page - 1) * limit, page };
+}
+
+/**
+ * The JSON response for one page of a list. `items` holds up to one item more than the page
+ * size, queried as LIMIT `limit + 1`; when that item exists, the response carries GitHub's
+ * `Link: <...>; rel="next"` header, which `gh api --paginate` follows.
+ */
+function listResponse(url: URL, page: ListPage, items: unknown[]): Response {
+  if (items.length <= page.limit) return Response.json(items);
+  const nextUrl = new URL(url);
+  nextUrl.searchParams.set("page", String(page.page + 1));
+  return Response.json(items.slice(0, page.limit), {
+    headers: { Link: `<${nextUrl}>; rel="next"` },
+  });
 }
 
 /** The preview a comment route addresses, issue or pull request alike (as on GitHub). */
-function findCommentTarget(db: D1Database, owner: string, repo: string, number: string) {
+type CommentTarget = Pick<PreviewRow, "id" | "owner" | "repo" | "number" | "kind">;
+
+/** The path parameters of the comment routes. */
+type CommentPath = { owner: string; repo: string; number: string };
+
+/** Selects the `CommentTarget` at `path`. */
+function commentTargetStatement(db: D1Database, path: CommentPath): D1PreparedStatement {
   return db
     .prepare(
       "SELECT id, owner, repo, number, kind FROM previews WHERE owner = ?1 AND repo = ?2 AND number = ?3",
     )
-    .bind(owner, repo, Number(number))
-    .first<Pick<PreviewRow, "id" | "owner" | "repo" | "number" | "kind">>();
+    .bind(path.owner, path.repo, Number(path.number));
 }
 
 /**
@@ -167,24 +210,28 @@ async function createPreview(
     scope.kind === "pull" ? ["title", "head", "base"] : ["title"],
   );
   if (problem) return githubError(422, problem);
+  const pullField = (name: string) => (scope.kind === "pull" ? textField(fields, name) : null);
+  const storedTexts = [
+    scope.owner,
+    scope.repo,
+    textField(fields, "title"),
+    textField(fields, "body"),
+    pullField("head"),
+    pullField("base"),
+    pullField("diff"),
+  ];
+  if (storedTexts.reduce((total, text) => total + byteLength(text), 0) > maxPreviewTextBytes) {
+    return githubError(422, previewTooLarge);
+  }
   const [inserted] = await db.batch<PreviewRow>([
     db
       .prepare(
-        `INSERT INTO previews (owner, repo, number, kind, title, body, head, base, diff)
-         SELECT ?1, ?2, coalesce(max(number), 0) + 1, ?3, ?4, ?5, ?6, ?7, ?8
+        `INSERT INTO previews (owner, repo, title, body, head, base, diff, kind, number)
+         SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, coalesce(max(number), 0) + 1
          FROM previews WHERE owner = ?1 AND repo = ?2
          RETURNING ${previewColumns}`,
       )
-      .bind(
-        scope.owner,
-        scope.repo,
-        scope.kind,
-        textField(fields, "title"),
-        textField(fields, "body"),
-        scope.kind === "pull" ? textField(fields, "head") : null,
-        scope.kind === "pull" ? textField(fields, "base") : null,
-        scope.kind === "pull" ? textField(fields, "diff") : null,
-      ),
+      .bind(...storedTexts, scope.kind),
     db.prepare("INSERT INTO events (kind) VALUES ('created')"),
   ]);
   const preview = inserted?.results[0];
@@ -207,16 +254,16 @@ async function listPreviews(
   if (state !== "open" && state !== "closed" && state !== "all") {
     return githubError(422, "state must be open, closed, or all");
   }
-  const { limit, offset } = listWindow(url);
+  const page = listPage(url);
   const { results } = await db
     .prepare(
       `SELECT ${previewColumns} FROM previews
        WHERE owner = ?1 AND repo = ?2 AND kind = ?3 AND (?4 = 'all' OR state = ?4)
        ORDER BY number DESC LIMIT ?5 OFFSET ?6`,
     )
-    .bind(scope.owner, scope.repo, scope.kind, state, limit, offset)
+    .bind(scope.owner, scope.repo, scope.kind, state, page.limit + 1, page.offset)
     .all<PreviewRow>();
-  return Response.json(results.map((preview) => previewJson(url.origin, preview)));
+  return listResponse(url, page, results.map((preview) => previewJson(url.origin, preview)));
 }
 
 /**
@@ -265,6 +312,37 @@ async function updatePreview(
   if (!fields) return githubError(400, "Problems parsing JSON");
   const problem = fieldsProblem(fields, []);
   if (problem) return githubError(422, problem);
+  const stored = await db
+    .prepare(
+      `SELECT
+         length(CAST(owner AS BLOB)) + length(CAST(repo AS BLOB))
+           + coalesce(length(CAST(head AS BLOB)), 0)
+           + coalesce(length(CAST(base AS BLOB)), 0) AS unchanged_bytes,
+         length(CAST(title AS BLOB)) AS title_bytes,
+         coalesce(length(CAST(body AS BLOB)), 0) AS body_bytes,
+         coalesce(length(CAST(diff AS BLOB)), 0) AS diff_bytes
+       FROM previews WHERE ${previewAddressCondition}`,
+    )
+    .bind(address.owner, address.repo, Number(address.number), address.kind)
+    .first<{
+      unchanged_bytes: number;
+      title_bytes: number;
+      body_bytes: number;
+      diff_bytes: number;
+    }>();
+  if (!stored) return githubError(404, "Not Found");
+  const title = textField(fields, "title");
+  const body = textField(fields, "body");
+  const diff = address.kind === "pull" ? textField(fields, "diff") : null;
+  if (
+    stored.unchanged_bytes +
+      (title === null ? stored.title_bytes : byteLength(title)) +
+      (body === null ? stored.body_bytes : byteLength(body)) +
+      (diff === null ? stored.diff_bytes : byteLength(diff)) >
+    maxPreviewTextBytes
+  ) {
+    return githubError(422, previewTooLarge);
+  }
   const [, updated] = await db.batch<PreviewRow>([
     db
       .prepare(
@@ -288,10 +366,10 @@ async function updatePreview(
         address.repo,
         Number(address.number),
         address.kind,
-        textField(fields, "title"),
-        textField(fields, "body"),
+        title,
+        body,
         textField(fields, "state"),
-        address.kind === "pull" ? textField(fields, "diff") : null,
+        diff,
       ),
   ]);
   const preview = updated?.results[0];
@@ -328,25 +406,33 @@ async function deletePreview(db: D1Database, address: PreviewAddress): Promise<R
     : githubError(404, "Not Found");
 }
 
-/** `POST .../issues/{number}/comments`: adds a comment to an issue or a pull request. */
+/**
+ * `POST .../issues/{number}/comments`: adds a comment to an issue or a pull request. The target
+ * is looked up and the comment inserted in one batch, so a preview deleted in between cannot
+ * receive it.
+ */
 async function createComment(
   db: D1Database,
   request: Request,
-  path: { owner: string; repo: string; number: string },
+  path: CommentPath,
 ): Promise<Response> {
-  const preview = await findCommentTarget(db, path.owner, path.repo, path.number);
-  if (!preview) return githubError(404, "Not Found");
   const fields = await readJsonObject(request);
   if (!fields) return githubError(400, "Problems parsing JSON");
   const problem = fieldsProblem(fields, ["body"]);
   if (problem) return githubError(422, problem);
-  const comment = await db
-    .prepare(
-      "INSERT INTO comments (preview_id, body) VALUES (?1, ?2) RETURNING id, body, created_at, updated_at",
-    )
-    .bind(preview.id, textField(fields, "body"))
-    .first<CommentRow>();
-  if (!comment) throw new Error("INSERT INTO comments returned no row");
+  const [target, inserted] = await db.batch([
+    commentTargetStatement(db, path),
+    db
+      .prepare(
+        `INSERT INTO comments (preview_id, body)
+         SELECT id, ?4 FROM previews WHERE owner = ?1 AND repo = ?2 AND number = ?3
+         RETURNING id, body, created_at, updated_at`,
+      )
+      .bind(path.owner, path.repo, Number(path.number), textField(fields, "body")),
+  ]);
+  const preview = target?.results[0] as CommentTarget | undefined;
+  const comment = inserted?.results[0] as CommentRow | undefined;
+  if (!preview || !comment) return githubError(404, "Not Found");
   return Response.json(commentJson(new URL(request.url).origin, preview, comment), { status: 201 });
 }
 
@@ -354,19 +440,23 @@ async function createComment(
 async function listComments(
   db: D1Database,
   request: Request,
-  path: { owner: string; repo: string; number: string },
+  path: CommentPath,
 ): Promise<Response> {
-  const preview = await findCommentTarget(db, path.owner, path.repo, path.number);
+  const preview = await commentTargetStatement(db, path).first<CommentTarget>();
   if (!preview) return githubError(404, "Not Found");
   const url = new URL(request.url);
-  const { limit, offset } = listWindow(url);
+  const page = listPage(url);
   const { results } = await db
     .prepare(
       "SELECT id, body, created_at, updated_at FROM comments WHERE preview_id = ?1 ORDER BY id LIMIT ?2 OFFSET ?3",
     )
-    .bind(preview.id, limit, offset)
+    .bind(preview.id, page.limit + 1, page.offset)
     .all<CommentRow>();
-  return Response.json(results.map((comment) => commentJson(url.origin, preview, comment)));
+  return listResponse(
+    url,
+    page,
+    results.map((comment) => commentJson(url.origin, preview, comment)),
+  );
 }
 
 /**
