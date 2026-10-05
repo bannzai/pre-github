@@ -33,6 +33,7 @@ jobs:
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm test
+      - run: bash scripts/test/test-preview-scripts.sh
       - run: npm run build
 
   e2e:

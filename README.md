@@ -28,12 +28,38 @@ The deploy prints the URL of your instance (`https://pre-github.<account>.worker
 
 ## Usage
 
-Create a preview of a pull request from the current branch:
+The scripts need `gh` and `jq`. Point them at your instance, and pass the `PRE_GITHUB_TOKEN` of your instance as `GH_ENTERPRISE_TOKEN` on each command rather than exporting it, because `gh` sends `GH_ENTERPRISE_TOKEN` to every GitHub Enterprise Server host, including one you may use in the same shell:
+<!-- source: `gh help environment`: "GH_ENTERPRISE_TOKEN ... will be used when a command targets a GitHub Enterprise Server host"; https://github.com/cli/go-gh/blob/trunk/pkg/auth/auth.go : IsEnterprise is true for every host other than github.com, github.localhost, and *.ghe.com, which is how a pre-github instance is treated -->
 
 ```sh
-PRE_GITHUB_HOST=pre-github.<account>.workers.dev GH_ENTERPRISE_TOKEN=<token> \
-  scripts/preview-pr.sh --base main --title "Add leak highlight" --body-file body.md
+export PRE_GITHUB_HOST=pre-github.<account>.workers.dev
 ```
+
+Create a preview of a pull request from the current branch (`git diff <base>...HEAD` is sent as the diff):
+
+```sh
+GH_ENTERPRISE_TOKEN=<token> scripts/preview-pr.sh --title "Add leak highlight" --body-file body.md \
+  [--base origin/main] [--owner <owner>] [--repo <repo>]
+```
+
+Create a preview of an issue:
+
+```sh
+GH_ENTERPRISE_TOKEN=<token> scripts/preview-issue.sh --title "Example" --body-file body.md \
+  [--owner <owner>] [--repo <repo>]
+```
+
+`--owner` and `--repo` default to the `origin` remote. Each script prints the `html_url` of the preview, and exits 1 with the reason on stderr when the token is missing, the branch has no changes, or the API returns an error. `--help` lists the options.
+
+Open the URL, fix `body.md` and send again until the page looks right, then send the same title and body to the real GitHub:
+
+```sh
+gh pr create --title "Add leak highlight" --body-file body.md [--base <branch>] [--repo <owner>/<repo>]
+gh issue create --title "Example" --body-file body.md [--repo <owner>/<repo>]
+```
+
+When the preview used `--base`, `--owner`, or `--repo`, pass the same branch to `--base` (a branch name such as `main`, not `origin/main`) and the same `<owner>/<repo>` to `--repo`, so the real GitHub gets the diff and repository you reviewed. The scripts refuse a `PRE_GITHUB_HOST` of `github.com`, `ghe.com`, or a subdomain of either, which `gh` would send to the real GitHub.
+<!-- source: https://github.com/cli/go-gh/blob/trunk/pkg/auth/auth.go : NormalizeHostname returns github.com for any host ending in .github.com, and IsTenancy treats hosts ending in .ghe.com as GitHub-hosted tenants, not enterprise hosts -->
 
 Or call the API directly:
 
