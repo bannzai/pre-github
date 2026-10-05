@@ -28,24 +28,26 @@ The deploy prints the URL of your instance (`https://pre-github.<account>.worker
 
 ## Usage
 
-The scripts need `gh` and `jq`. Point them at your instance:
+The scripts need `gh` and `jq`. Point them at your instance, and pass the `PRE_GITHUB_TOKEN` of your instance as `GH_ENTERPRISE_TOKEN` on each command rather than exporting it, because `gh` sends `GH_ENTERPRISE_TOKEN` to every GitHub Enterprise Server host, including one you may use in the same shell:
+<!-- source: `gh help environment`: "GH_ENTERPRISE_TOKEN ... will be used when a command targets a GitHub Enterprise Server host"; https://github.com/cli/go-gh/blob/trunk/pkg/auth/auth.go : IsEnterprise is true for every host other than github.com, github.localhost, and *.ghe.com, which is how a pre-github instance is treated -->
+
 
 ```sh
 export PRE_GITHUB_HOST=pre-github.<account>.workers.dev
-export GH_ENTERPRISE_TOKEN=<token>   # the PRE_GITHUB_TOKEN of your instance
 ```
 
 Create a preview of a pull request from the current branch (`git diff <base>...HEAD` is sent as the diff):
 
 ```sh
-scripts/preview-pr.sh --title "Add leak highlight" --body-file body.md \
+GH_ENTERPRISE_TOKEN=<token> scripts/preview-pr.sh --title "Add leak highlight" --body-file body.md \
   [--base origin/main] [--owner <owner>] [--repo <repo>]
 ```
 
 Create a preview of an issue:
 
 ```sh
-scripts/preview-issue.sh --title "Example" --body-file body.md [--owner <owner>] [--repo <repo>]
+GH_ENTERPRISE_TOKEN=<token> scripts/preview-issue.sh --title "Example" --body-file body.md \
+  [--owner <owner>] [--repo <repo>]
 ```
 
 `--owner` and `--repo` default to the `origin` remote. Each script prints the `html_url` of the preview, and exits 1 with the reason on stderr when the token is missing, the branch has no changes, or the API returns an error. `--help` lists the options.

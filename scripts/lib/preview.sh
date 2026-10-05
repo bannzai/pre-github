@@ -7,8 +7,9 @@ preview_fail() {
   exit 1
 }
 
-# Exits 1 unless PRE_GITHUB_HOST and GH_ENTERPRISE_TOKEN are set, PRE_GITHUB_HOST is not a GitHub
-# host (github.com, ghe.com, or a subdomain of either), and jq is installed.
+# Exits 1 unless PRE_GITHUB_HOST and GH_ENTERPRISE_TOKEN are set, PRE_GITHUB_HOST is a host name
+# (with an optional port) that is not a GitHub host (github.com, ghe.com, or a subdomain of
+# either), and jq is installed.
 # gh reads GH_ENTERPRISE_TOKEN for every host other than github.com (`gh help environment`), so the
 # token is required here instead of falling back to a stored `gh auth login`, which would be
 # looked up for the pre-github host and fail with a less clear message.
@@ -20,7 +21,13 @@ preview_require_environment() {
   # in https://github.com/cli/go-gh/blob/trunk/pkg/auth/auth.go).
   local host
   host="$(printf '%s' "$PRE_GITHUB_HOST" | tr '[:upper:]' '[:lower:]')"
-  host="${host%%.}"
+  case "$host" in
+    *[!a-z0-9.:-]*)
+      preview_fail "PRE_GITHUB_HOST must be a host name such as pre-github.<account>.workers.dev, without a scheme or path ($PRE_GITHUB_HOST)"
+      ;;
+  esac
+  host="${host%%:*}"
+  host="${host%.}"
   case "$host" in
     github.com | *.github.com | ghe.com | *.ghe.com)
       preview_fail "PRE_GITHUB_HOST must be your pre-github instance, not a GitHub host ($PRE_GITHUB_HOST)"

@@ -28,15 +28,18 @@ assert_contains() {
   esac
 }
 
-# Runs the command in the fixture repository with the gh stub and a complete environment (both
-# can be overridden by starting the command with `env`). Sets $out, $err, and $status, and clears
-# what the stub recorded on the previous run.
+# Directory inside the fixture repository that run() executes the command in.
+run_dir="$repo"
+
+# Runs the command in $run_dir with the gh stub and a complete environment (both can be
+# overridden by starting the command with `env`). Sets $out, $err, and $status, and clears what
+# the stub recorded on the previous run.
 run() {
   : >"$work/args"
   : >"$work/input.json"
   set +e
   (
-    cd "$repo"
+    cd "$run_dir"
     PATH="$scripts_dir/test/bin:$PATH" PRE_GITHUB_HOST=preview.example.com \
       GH_ENTERPRISE_TOKEN=test-token GH_STUB_DIR="$work" "$@"
   ) >"$work/out" 2>"$work/err"
@@ -106,6 +109,17 @@ assert_equal "pr with diff prefix config: diff" \
 git -C "$repo" config --unset diff.noprefix
 git -C "$repo" config --unset diff.mnemonicPrefix
 
+# The diff covers the whole repository when run from a subdirectory under diff.relative
+git -C "$repo" config diff.relative true
+mkdir "$repo/sub"
+run_dir="$repo/sub"
+run "$scripts_dir/preview-pr.sh" --title "Relative config"
+assert_equal "pr from subdirectory with diff.relative: status" "$status" 0
+assert_equal "pr from subdirectory with diff.relative: diff" \
+  "$(jq --rawfile expected "$work/expected.diff" '.diff == $expected' "$work/input.json")" true
+run_dir="$repo"
+git -C "$repo" config --unset diff.relative
+
 # Pull request with explicit base, owner, and repo, and no body file
 run "$scripts_dir/preview-pr.sh" --title "Explicit" --base main --owner other-owner --repo other-repo
 assert_equal "pr explicit: status" "$status" 0
@@ -123,7 +137,14 @@ run env PRE_GITHUB_HOST= "$scripts_dir/preview-pr.sh" --title "No host"
 assert_equal "pr without host: status" "$status" 1
 assert_contains "pr without host: reason" "$err" "PRE_GITHUB_HOST is not set"
 
-for host in GitHub.com api.github.com github.com. example.ghe.com; do
+for host in https://preview.example.com preview.example.com/ user@preview.example.com; do
+  run env PRE_GITHUB_HOST="$host" "$scripts_dir/preview-pr.sh" --title "Not a host name"
+  assert_equal "pr to $host: status" "$status" 1
+  assert_contains "pr to $host: reason" "$err" "must be a host name"
+  assert_equal "pr to $host: gh is not called" "$(cat "$work/args")" ""
+done
+
+for host in GitHub.com api.github.com github.com. github.com:443 example.ghe.com; do
   run env PRE_GITHUB_HOST="$host" "$scripts_dir/preview-pr.sh" --title "Real GitHub"
   assert_equal "pr to $host: status" "$status" 1
   assert_contains "pr to $host: reason" "$err" "not a GitHub host"
