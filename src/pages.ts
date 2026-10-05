@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { createMiddleware } from "hono/factory";
 import { html, raw } from "hono/html";
 import parseDiff from "parse-diff";
@@ -43,7 +44,7 @@ const pageHeaders = {
 function pageResponse(
   c: PageContext,
   content: PageHtml,
-  status: 200 | 401 | 403 | 404,
+  status: 200 | 401 | 403 | 404 | 413,
 ): Response | Promise<Response> {
   return c.html(content, status, pageHeaders);
 }
@@ -580,16 +581,34 @@ pages.get("/login", (c) =>
     200,
   ),
 );
-pages.post("/login", async (c) => {
-  const form = await c.req.parseBody();
-  const next = localPath(c.req.url, form.next);
-  const presentedToken = typeof form.token === "string" ? form.token : "";
-  if (!(await isInstanceToken(c.env, presentedToken))) {
-    return pageResponse(c, loginPage({ next, tokenMismatch: true }), 401);
-  }
-  await startSession(c, presentedToken);
-  return c.redirect(next, 303);
-});
+/**
+ * The largest login form read, in bytes. A token and a return path fit in a few kilobytes; the
+ * limit keeps an unauthenticated body far below the Worker's 128 MB memory before parsing.
+ */
+const maxLoginFormBytes = 64 * 1024;
+
+pages.post(
+  "/login",
+  bodyLimit({
+    maxSize: maxLoginFormBytes,
+    onError: (c) =>
+      pageResponse(
+        c,
+        messagePage("The form is too large", "Send the token and nothing else."),
+        413,
+      ),
+  }),
+  async (c) => {
+    const form = await c.req.parseBody();
+    const next = localPath(c.req.url, form.next);
+    const presentedToken = typeof form.token === "string" ? form.token : "";
+    if (!(await isInstanceToken(c.env, presentedToken))) {
+      return pageResponse(c, loginPage({ next, tokenMismatch: true }), 401);
+    }
+    await startSession(c, presentedToken);
+    return c.redirect(next, 303);
+  },
+);
 
 pages.get("/", requireSession, async (c) => {
   const { results } = await c.env.DB.prepare(

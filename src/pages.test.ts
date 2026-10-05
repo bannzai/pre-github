@@ -36,6 +36,14 @@ async function sessionCookie(): Promise<string> {
   return setCookie.split(";")[0]!;
 }
 
+/**
+ * `pageHtml` without the whitespace around tags, which depends on how Prettier wraps the
+ * templates in src/pages.ts and does not change what the page shows.
+ */
+function compactHtml(pageHtml: string): string {
+  return pageHtml.replace(/\s+>/g, ">").replace(/>\s+</g, "><");
+}
+
 /** Sends a page request carrying `cookie`, without following redirects. */
 function getPage(path: string, cookie: string) {
   return SELF.fetch(`${origin}${path}`, { headers: { Cookie: cookie }, redirect: "manual" });
@@ -78,6 +86,12 @@ describe("page login", () => {
     expect(response.status).toBe(401);
     expect(response.headers.get("Set-Cookie")).toBeNull();
     expect(await response.text()).toContain("That token does not match");
+  });
+
+  it("refuses a login form over 64 KiB before parsing it", async () => {
+    const response = await postLogin("x".repeat(64 * 1024), "/");
+    expect(response.status).toBe(413);
+    expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
   it("sets an HttpOnly, Secure, SameSite=Lax session cookie for the right token and returns to next", async () => {
@@ -200,9 +214,9 @@ describe("preview pages", () => {
         "",
       ].join("\n"),
     });
-    const page = await (
-      await getPage(new URL(created.html_url).pathname, await sessionCookie())
-    ).text();
+    const page = compactHtml(
+      await (await getPage(new URL(created.html_url).pathname, await sessionCookie())).text(),
+    );
     expect(page).toContain("2 files changed");
     expect(page).toContain("<code>src/a.ts</code>");
     expect(page).toContain("<code>README.md</code>");
@@ -215,7 +229,9 @@ describe("preview pages", () => {
 
   it("list the previews of a repository by state", async () => {
     await createPreview("/repos/alice/pages-list/issues", { title: "Listed issue" });
-    const page = await (await getPage("/alice/pages-list/issues", await sessionCookie())).text();
+    const page = compactHtml(
+      await (await getPage("/alice/pages-list/issues", await sessionCookie())).text(),
+    );
     expect(page).toContain("1 Open");
     expect(page).toContain("0 Closed");
     expect(page).toContain('href="/alice/pages-list/issues/1">Listed issue</a>');
