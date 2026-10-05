@@ -105,6 +105,10 @@ test("an issue page renders GitHub Flavored Markdown and escapes raw HTML", asyn
     "src",
     "https://avatars.githubusercontent.com/u/9919?s=80&v=4",
   );
+  // Loaded, not just present: the Content Security Policy must let the image through.
+  await expect
+    .poll(() => body.locator("img").evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBeGreaterThan(0);
   await expect(body.locator('a[href="https://github.com/bannzai/pre-github"]')).toBeVisible();
   await expect(body.getByText('<script>alert("raw html")</script>')).toBeVisible();
   await expect(body.getByText("<b>not bold</b>")).toBeVisible();
