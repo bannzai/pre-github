@@ -236,7 +236,10 @@ describe("preview pages", () => {
     );
     expect(page.match(/<mark /g)).toHaveLength(6);
     expect(page).toContain('<mark title="Possible phone number">03-0000-0000</mark>');
-    expect(page).toContain('<mark title="Possible email address">alice@corp.invalid</mark>.');
+    // An autolink shows its address, so its text is marked and its href is not searched again.
+    expect(page).toContain(
+      '<a href="mailto:alice@corp.invalid"><mark title="Possible email address">alice@corp.invalid</mark></a>.',
+    );
     expect(page).toContain(
       '<code><mark title="Possible home directory path">/Users/alice/worktrees/demo</mark></code>',
     );
@@ -368,6 +371,9 @@ describe("preview pages", () => {
       await getPage(new URL(created.html_url).pathname, await sessionCookie())
     ).text();
     expect(page).toContain("The stored diff could not be read as a unified diff");
+    // A diff that was not searched is not reported as free of leaks.
+    expect(page).toContain("The diff was not checked for possible leaks");
+    expect(page).not.toContain("No possible leaks found");
   });
 
   it("keep the page when parse-diff throws on a malformed diff", async () => {

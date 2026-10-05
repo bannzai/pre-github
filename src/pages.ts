@@ -161,22 +161,35 @@ const englishList = new Intl.ListFormat("en", { type: "conjunction" });
 
 /**
  * The band under the header of a preview page, from the gate 2 mockups: how many possible leaks
- * (src/leaks.ts) the page marked, by kind, or what was searched when none were found. `kind` and
- * `commentCount` are the preview's kind and number of comments.
+ * (src/leaks.ts) the page marked, by kind, or what was searched when none were found.
+ * `commentCount` is the preview's number of comments. `diffSearch` is whether the added lines of
+ * a pull request's diff were searched, or could not be because the stored diff could not be read
+ * (an unsearched diff is never reported as free of leaks), or there is no diff (an issue).
  */
 function leakBanner(
   leakCounts: LeakCounts,
-  kind: PreviewRow["kind"],
   commentCount: number,
+  diffSearch: "searched" | "unreadable" | "none",
 ): PageHtml {
   const foundKinds = leakKinds.filter((leakKind) => leakCounts[leakKind] > 0);
+  const unreadableNote =
+    diffSearch === "unreadable" ? " The stored diff could not be read, so it was not checked." : "";
   if (foundKinds.length === 0) {
     const searchedParts = [
       "the body",
       `${commentCount} ${commentCount === 1 ? "comment" : "comments"}`,
-      ...(kind === "pull" ? ["the added lines of the diff"] : []),
+      ...(diffSearch === "searched" ? ["the added lines of the diff"] : []),
     ];
     const searched = `Checked ${englishList.format(searchedParts)} for ${englishList.format(leakKinds.map((leakKind) => leakKindNames[leakKind][1]))}`;
+    if (diffSearch === "unreadable") {
+      return html`<div class="leak-banner leak-banner-found">
+        ${alertIcon}
+        <div class="leak-banner-text">
+          <strong>The diff was not checked for possible leaks</strong>
+          <span>${searched} and found none.${unreadableNote}</span>
+        </div>
+      </div>`;
+    }
     return html`<div class="leak-banner leak-banner-clear">
       ${checkIcon}
       <div class="leak-banner-text">
@@ -196,7 +209,10 @@ function leakBanner(
     ${alertIcon}
     <div class="leak-banner-text">
       <strong>${total} possible ${total === 1 ? "leak" : "leaks"} found in this preview</strong>
-      <span>${summary}. Highlighted below; fix them before sending this to GitHub.</span>
+      <span
+        >${summary}. Highlighted below; fix them before sending this to
+        GitHub.${unreadableNote}</span
+      >
     </div>
   </div>`;
 }
@@ -454,10 +470,17 @@ function previewPage(preview: PreviewRow & { diff: string | null }, comments: Co
   const body = markdownBody(preview.body, leakCounts);
   const commentItems = comments.map((comment) => commentItem(comment, leakCounts));
   const filesPart = preview.kind === "pull" ? filesSection(files, preview.diff, leakCounts) : "";
+  // A stored diff that parses into no file is one `filesSection` says could not be read.
+  const diffSearch =
+    preview.kind === "issue"
+      ? "none"
+      : files.length === 0 && preview.diff?.trim()
+        ? "unreadable"
+        : "searched";
   return htmlDocument(
     `${preview.title} · ${preview.kind === "pull" ? "Pull Request" : "Issue"} #${preview.number} · ${preview.owner}/${preview.repo}`,
     html`<div class="page">
-      ${repositoryHeader(preview)} ${leakBanner(leakCounts, preview.kind, comments.length)}
+      ${repositoryHeader(preview)} ${leakBanner(leakCounts, comments.length, diffSearch)}
       <main>
         <div class="title-row">
           <h1>${preview.title} <span class="number">#${preview.number}</span></h1>
