@@ -120,6 +120,27 @@ assert_equal "pr from subdirectory with diff.relative: diff" \
 run_dir="$repo"
 git -C "$repo" config --unset diff.relative
 
+# The diff has GitHub's 3 context lines and separate hunks under a user's diff.context and
+# diff.interHunkContext. Lines 5 and 15 of 20 are changed, so 3 context lines give two hunks, 10
+# give one hunk of the whole file, and an inter-hunk context of 3 merges the two.
+git -C "$repo" checkout -q -b context-base origin/main
+seq 1 20 >"$repo/lines.txt"
+git -C "$repo" add lines.txt
+git_commit -m "lines"
+git -C "$repo" checkout -q -b context
+sed -e 's/^5$/five/' -e 's/^15$/fifteen/' "$repo/lines.txt" >"$work/lines.txt"
+mv "$work/lines.txt" "$repo/lines.txt"
+git_commit -am "change lines 5 and 15"
+git -C "$repo" config diff.context 10
+git -C "$repo" config diff.interHunkContext 3
+run "$scripts_dir/preview-pr.sh" --title "Context config" --base context-base
+assert_equal "pr with diff context config: status" "$status" 0
+assert_equal "pr with diff context config: hunks" "$(sent .diff | grep '^@@')" \
+  "$(lines '@@ -2,7 +2,7 @@' '@@ -12,7 +12,7 @@')"
+git -C "$repo" config --unset diff.context
+git -C "$repo" config --unset diff.interHunkContext
+git -C "$repo" checkout -q feature
+
 # Pull request with explicit base, owner, and repo, and no body file
 run "$scripts_dir/preview-pr.sh" --title "Explicit" --base main --owner other-owner --repo other-repo
 assert_equal "pr explicit: status" "$status" 0

@@ -66,11 +66,12 @@ head="$(git symbolic-ref --short --quiet HEAD)" || preview_fail "HEAD is detache
 diff_file="$(mktemp)"
 trap 'rm -f "$diff_file"' EXIT
 # Written to a file and checked before sending, because a failed git diff (for example no merge
-# base in a shallow clone) would otherwise send an empty diff that the API accepts. The prefix and
-# path options fix the a/ b/ format and the whole-repository scope that GitHub's diff has, whatever
-# diff.noprefix, diff.mnemonicPrefix, or diff.relative the user has configured.
+# base in a shallow clone) would otherwise send an empty diff that the API accepts. The prefix,
+# path, and context options fix the a/ b/ format, the whole-repository scope, and the 3 context
+# lines with unmerged hunks that GitHub's diff has, whatever diff.noprefix, diff.mnemonicPrefix,
+# diff.relative, diff.context, or diff.interHunkContext the user has configured.
 git diff --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/ --no-relative \
-  "$base...HEAD" >"$diff_file" ||
+  -U3 --inter-hunk-context=0 "$base...HEAD" >"$diff_file" ||
   preview_fail "could not compute git diff $base...HEAD"
 [ -s "$diff_file" ] || preview_fail "no changes between $base and HEAD"
 preview_resolve_repository "$owner" "$repo"
