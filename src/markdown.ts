@@ -98,7 +98,7 @@ markdown.renderer.rules.link_open = (tokens, index, options, env, renderer) => {
   return `${kinds.map(leakMarkStart).join("")}${renderer.renderToken(tokens, index, options)}`;
 };
 markdown.renderer.rules.link_close = (tokens, index, options, _env, renderer) =>
-  `${renderer.renderToken(tokens, index, options)}${"</mark>".repeat(tokens[index]!.meta?.leakMarkCount ?? 0)}`;
+  `${renderer.renderToken(tokens, index, options)}${"</mark>".repeat(Number(tokens[index]!.meta?.leakMarkCount ?? 0))}`;
 
 /**
  * The HTML of `text` rendered as GitHub Flavored Markdown, safe to insert into a page, with each
