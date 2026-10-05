@@ -34,6 +34,8 @@ describe("findLeaks", () => {
     "since 1759708800",
     "zip 150-0002",
     "digits 0123456789",
+    "ratio 0.09000000000",
+    "https://shop.invalid/orders/09000000000",
     "https://github.com/bannzai/pre-github/issues/1#issuecomment-5993708539",
   ])("does not take %s for a phone number", (text) => {
     expect(leaksIn(text)).toEqual([]);

@@ -36,12 +36,12 @@ const leakDetectors: LeakDetector[] = [
      * `212-555-0123`). Numbers separated by dots are not found.
      * Not matched (false positives avoided): ISBNs (`978-4-87311-565-8`, `0-306-40615-2`), dates
      * and timestamps (`2026-10-06`, `06-10-2026`, `2026-10-06T12:34:56Z`, `1759708800`), time
-     * zone offsets (`+09:00`), zip codes (`150-0002`), and digit runs inside longer numbers or
-     * words.
+     * zone offsets (`+09:00`), zip codes (`150-0002`), and digit runs inside longer numbers,
+     * words, decimals, or paths (`0.09000000000`, `/orders/09000000000`).
      */
     kind: "phone",
     pattern:
-      /(?<![\w+-])(?:\+\d{1,3}(?:[ -]?(?:\(\d{1,4}\)|\d{1,4})){2,5}|(?:\(0[1-9]\d{0,3}\)|0[1-9]\d{0,3})[ -]?(?:\(\d{1,4}\)|\d{1,4})[ -]?\d{3,4}|(?:\(\d{3}\) ?|\d{3}-)\d{3}-\d{4})(?![\w-])/g,
+      /(?<![\w+./-])(?:\+\d{1,3}(?:[ -]?(?:\(\d{1,4}\)|\d{1,4})){2,5}|(?:\(0[1-9]\d{0,3}\)|0[1-9]\d{0,3})[ -]?(?:\(\d{1,4}\)|\d{1,4})[ -]?\d{3,4}|(?:\(\d{3}\) ?|\d{3}-)\d{3}-\d{4})(?![\w-])/g,
     accepts: (match) => {
       const digitCount = match.replace(/\D/g, "").length;
       if (match.startsWith("+")) return digitCount >= 9 && digitCount <= 15;
