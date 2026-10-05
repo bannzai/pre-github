@@ -69,7 +69,9 @@ describe("findLeaks", () => {
 
   it.each([
     "/Users/Shared/data",
+    "See /Users/Shared.",
     "/home/runner/work/pre-github",
+    "Runs in /home/runner.",
     "https://example.com/home/alice",
     "/srv/home/alice",
     "/Users/<name>",

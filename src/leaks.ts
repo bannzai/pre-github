@@ -80,7 +80,7 @@ const leakDetectors: LeakDetector[] = [
      */
     kind: "homePath",
     pattern:
-      /(?<![\w.~-])\/(?:Users|home)\/(?!(?:Shared|runner)(?![\p{L}\p{N}_.@+-]))[\p{L}\p{N}_.@+-]*[\p{L}\p{N}_@+-](?:\/[\p{L}\p{N}_.@+-]*[\p{L}\p{N}_@+-])*/gu,
+      /(?<![\w.~-])\/(?:Users|home)\/(?!(?:Shared|runner)(?![\p{L}\p{N}_@+-]|\.[\p{L}\p{N}_@+-]))[\p{L}\p{N}_.@+-]*[\p{L}\p{N}_@+-](?:\/[\p{L}\p{N}_.@+-]*[\p{L}\p{N}_@+-])*/gu,
   },
   {
     /**
