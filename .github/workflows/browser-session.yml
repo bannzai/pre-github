@@ -47,7 +47,8 @@ jobs:
       # The runner has no Cloudflare account: a local D1 with the migrations applied, then wrangler dev.
       setup_command: npm ci && npm run migrate:local
       # PORT comes from the `port` input. The token is a throwaway for this public session only.
-      start_command: PRE_GITHUB_TOKEN=webtunnel-token WRANGLER_SEND_METRICS=false npx wrangler dev --port "$PORT"
+      # wrangler dev does not pass the process environment to the Worker; --var does.
+      start_command: WRANGLER_SEND_METRICS=false npx wrangler dev --port "$PORT" --var PRE_GITHUB_TOKEN:webtunnel-token
       port: "8787"
       ready_path: /healthz
       node_version: "22"

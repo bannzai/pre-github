@@ -24,8 +24,8 @@ pre-github speaks a subset of the GitHub REST API. The goal is that `gh api --ho
 
 | Method and path | GitHub behaviour kept | Notes |
 | --- | --- | --- |
-| `POST /repos/{owner}/{repo}/issues` | request fields `title`, `body`, `labels`; response fields `number`, `title`, `body`, `state`, `html_url`, `created_at`, `updated_at` | |
-| `GET /repos/{owner}/{repo}/issues` and `/issues/{number}` | list and single issue | list returns newest first |
+| `POST /repos/{owner}/{repo}/issues` | request fields `title`, `body`, `labels`; response fields `id`, `number`, `title`, `body`, `state`, `html_url`, `created_at`, `updated_at` | `labels` is accepted and ignored (not stored, not returned) |
+| `GET /repos/{owner}/{repo}/issues` and `/issues/{number}` | list and single issue; `state` (default `open`), `per_page` (default 30, max 100), `page`, with GitHub's defaults | list returns newest first. Unlike GitHub, the issue endpoints other than comments do not return pull requests |
 | `PATCH /repos/{owner}/{repo}/issues/{number}` | `title`, `body`, `state` | |
 | `POST /repos/{owner}/{repo}/pulls` | request fields `title`, `body`, `head`, `base`; response fields as above plus `head.ref`, `base.ref` | extension: `diff` (unified diff text) because there is no git server |
 | `GET /repos/{owner}/{repo}/pulls` and `/pulls/{number}` | list and single PR | `GET .../pulls/{number}` with `Accept: application/vnd.github.diff` returns the stored diff |
@@ -35,7 +35,7 @@ pre-github speaks a subset of the GitHub REST API. The goal is that `gh api --ho
 
 - Every path is also served under `/api/v3/`, which is the prefix `gh` uses for GitHub Enterprise Server hosts. `GH_HOST=<host> gh api repos/...` therefore reaches the same handlers.
 - `{owner}` and `{repo}` are free-form labels. pre-github does not know about real repositories; they only group previews and build `html_url`.
-- Errors use GitHub's shape: `{ "message": "...", "documentation_url": "..." }` with 401, 404, 422.
+- Errors use GitHub's shape: `{ "message": "...", "documentation_url": "..." }` with 400, 401, 404, 422, 500.
 - Anything outside the table returns 404 with that error shape. The server never forwards requests to github.com.
 
 ## HTML pages
@@ -51,7 +51,9 @@ pre-github speaks a subset of the GitHub REST API. The goal is that `gh api --ho
 
 - Storage is Cloudflare D1 only. Schema and migrations live in `migrations/` (`.claude/rules/d1-database.md`).
 - Tables hold previews (issues and pull requests share numbering per `{owner}/{repo}`, as on GitHub), comments, and `events` (`kind` is `created` / `updated` / `deleted`, with the timestamp only; no title or body). `events` is the measurement source in DIRECTION.md.
-- Deletion is a hard delete. Nothing is kept after `DELETE` except the `events` row.
+- Deletion is a hard delete. Nothing is kept after `DELETE` except the `events` row. Because no counter survives, deleting the newest preview of a `{owner}/{repo}` lets the next preview reuse its number.
+- A `body` or `diff` over 1,000,000 bytes is rejected with 422, and so is a preview whose text columns together exceed 990,000 bytes (`.claude/rules/d1-database.md` limits a row to 1 MB).
+- List responses carry GitHub's `Link: <...>; rel="next"` header when another page exists, so `gh api --paginate` reads every page.
 - Images are referenced by URL. Uploads are out of scope for the MVP.
 
 ## Constraints
