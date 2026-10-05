@@ -348,6 +348,20 @@ describe("validation", () => {
     });
   });
 
+  it("ignores fields the endpoint does not take, as GitHub does", async () => {
+    const repoPath = "/repos/alice/ignored-fields";
+    const issue = await api(`${repoPath}/issues`, {
+      method: "POST",
+      json: { title: "T", state: "merged", head: "", diff: "a".repeat(1_000_001) },
+    });
+    expect(issue.status).toBe(201);
+    const comment = await api(`${repoPath}/issues/1/comments`, {
+      method: "POST",
+      json: { body: "x", title: "", state: "merged" },
+    });
+    expect(comment.status).toBe(201);
+  });
+
   it("answers 400 for a body that is not JSON", async () => {
     const response = await SELF.fetch(`${origin}/repos/alice/validation/issues`, {
       method: "POST",

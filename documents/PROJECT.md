@@ -35,7 +35,7 @@ pre-github speaks a subset of the GitHub REST API. The goal is that `gh api --ho
 
 - Every path is also served under `/api/v3/`, which is the prefix `gh` uses for GitHub Enterprise Server hosts. `GH_HOST=<host> gh api repos/...` therefore reaches the same handlers.
 - `{owner}` and `{repo}` are free-form labels. pre-github does not know about real repositories; they only group previews and build `html_url`.
-- Errors use GitHub's shape: `{ "message": "...", "documentation_url": "..." }` with 401, 404, 422.
+- Errors use GitHub's shape: `{ "message": "...", "documentation_url": "..." }` with 400, 401, 404, 422, 500.
 - Anything outside the table returns 404 with that error shape. The server never forwards requests to github.com.
 
 ## HTML pages

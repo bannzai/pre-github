@@ -139,21 +139,23 @@ async function readJsonObject(request: Request): Promise<Record<string, unknown>
 }
 
 /**
- * Why `fields` cannot be stored, as a 422 message, or undefined when they can. `requiredNames`
- * must be present. Text fields must be strings within `maxTextBytes`, and `title`, `head`, and
- * `base` must not be empty; `state` must be `open`, `closed`, or null. Other fields (such as `labels`)
- * are accepted and ignored.
+ * Why `fields` cannot be stored, as a 422 message, or undefined when they can. Only the fields
+ * in `acceptedNames` are checked, and those in `requiredNames` must be present; every other
+ * field (such as `labels`, or `state` on a create) is ignored, as GitHub ignores fields an
+ * endpoint does not take. Text fields must be strings within `maxTextBytes`, and `title`,
+ * `head`, and `base` must not be empty; `state` must be `open`, `closed`, or null.
  */
 function fieldsProblem(
   fields: Record<string, unknown>,
   requiredNames: string[],
+  acceptedNames: string[],
 ): string | undefined {
   for (const name of requiredNames) {
     if (fields[name] === undefined || fields[name] === null) return `${name} is missing`;
   }
   for (const name of ["title", "body", "head", "base", "diff"]) {
     const value = fields[name];
-    if (value === undefined || value === null) continue;
+    if (!acceptedNames.includes(name) || value === undefined || value === null) continue;
     if (typeof value !== "string") return `${name} must be a string`;
     if (value === "" && name !== "body" && name !== "diff") return `${name} must not be empty`;
     if (byteLength(value) > maxTextBytes) {
@@ -161,6 +163,7 @@ function fieldsProblem(
     }
   }
   if (
+    acceptedNames.includes("state") &&
     fields.state !== undefined &&
     fields.state !== null &&
     fields.state !== "open" &&
@@ -254,10 +257,10 @@ async function createPreview(
 ): Promise<Response> {
   const fields = await readJsonObject(request);
   if (fields instanceof Response) return fields;
-  const problem = fieldsProblem(
-    fields,
-    scope.kind === "pull" ? ["title", "head", "base"] : ["title"],
-  );
+  const problem =
+    scope.kind === "pull"
+      ? fieldsProblem(fields, ["title", "head", "base"], ["title", "body", "head", "base", "diff"])
+      : fieldsProblem(fields, ["title"], ["title", "body"]);
   if (problem) return githubError(422, problem);
   const pullField = (name: string) => (scope.kind === "pull" ? textField(fields, name) : null);
   const storedTexts = [
@@ -364,7 +367,11 @@ async function updatePreview(
 ): Promise<Response> {
   const fields = await readJsonObject(request);
   if (fields instanceof Response) return fields;
-  const problem = fieldsProblem(fields, []);
+  const problem = fieldsProblem(
+    fields,
+    [],
+    address.kind === "pull" ? ["title", "body", "state", "diff"] : ["title", "body", "state"],
+  );
   if (problem) return githubError(422, problem);
   const patchedBindings = [
     address.owner,
@@ -447,7 +454,7 @@ async function createComment(
 ): Promise<Response> {
   const fields = await readJsonObject(request);
   if (fields instanceof Response) return fields;
-  const problem = fieldsProblem(fields, ["body"]);
+  const problem = fieldsProblem(fields, ["body"], ["body"]);
   if (problem) return githubError(422, problem);
   // A preview's body may be empty, but GitHub refuses an empty comment.
   if (fields.body === "") return githubError(422, "body must not be empty");
