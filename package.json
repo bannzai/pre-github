@@ -22,7 +22,10 @@
     "test:e2e": "playwright test -c e2e/playwright.config.ts"
   },
   "dependencies": {
-    "hono": "^4.13.13"
+    "@mdit/plugin-tasklist": "^1.1.3",
+    "hono": "^4.13.13",
+    "markdown-it": "^15.0.2",
+    "parse-diff": "^0.12.0"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.3.6",
