@@ -1,0 +1,56 @@
+name: browser-session
+# run-name is the key the bannzai/webtunnel CLI uses to find this run; keep the format.
+run-name: "session=${{ inputs.session }} duration=${{ inputs.duration_minutes }}m"
+
+on:
+  workflow_dispatch: # workflow_dispatch only, so fork PRs never receive the secrets
+    # Inputs the webtunnel CLI sends. Dispatch is rejected when an undeclared input is sent.
+    # The defaults mirror the caller example in bannzai/webtunnel PROJECT.md so a manual dispatch
+    # behaves like `local/webtunnel up` without options.
+    inputs:
+      session:
+        required: true
+        default: dev
+      duration_minutes:
+        required: true
+        default: "60"
+      start_url:
+        required: false
+        default: ""
+      record:
+        required: false
+        default: "true"
+      preview:
+        required: false
+        default: "true"
+      setup_script:
+        required: false
+        default: ".webtunnel/setup.sh"
+      software_webgl:
+        required: false
+        default: "false"
+
+jobs:
+  session:
+    permissions:
+      id-token: write
+      contents: read
+    uses: bannzai/webtunnel/.github/workflows/session.yml@66a7d244332f605253c86c6ee0851f11980f5f01 # main
+    with:
+      session: ${{ inputs.session }}
+      duration_minutes: ${{ inputs.duration_minutes }}
+      start_url: ${{ inputs.start_url }}
+      record: ${{ inputs.record }}
+      preview: ${{ inputs.preview }}
+      setup_script: ${{ inputs.setup_script }}
+      software_webgl: ${{ inputs.software_webgl }}
+      # The runner has no Cloudflare account: a local D1 with the migrations applied, then wrangler dev.
+      setup_command: npm ci && npm run migrate:local
+      # PORT comes from the `port` input. The token is a throwaway for this public session only.
+      start_command: PRE_GITHUB_TOKEN=webtunnel-token WRANGLER_SEND_METRICS=false npx wrangler dev --port "$PORT"
+      port: "8787"
+      ready_path: /healthz
+      node_version: "22"
+    secrets:
+      TS_OIDC_CLIENT_ID: ${{ secrets.TS_OIDC_CLIENT_ID }}
+      TS_OIDC_AUDIENCE: ${{ secrets.TS_OIDC_AUDIENCE }}

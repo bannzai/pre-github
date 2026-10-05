@@ -1,0 +1,18 @@
+# Rules distributed from castle (~/.claude/rules) by the propagate-coding-rules skill.
+# One name per line; "!" marks a rule judged not applicable to this repository.
+coding-rules-general-assets-license.md
+coding-rules-general-default-value-rationale.md
+coding-rules-general-document-definitions.md
+coding-rules-general-meaningful-argument-labels.md
+coding-rules-general-naming-with-parent-context.md
+coding-rules-general-no-default-for-external-source-of-truth.md
+coding-rules-general-no-intermediate-representations.md
+coding-rules-general-no-intermediate-variables.md
+coding-rules-general-prefer-functions-over-classes.md
+coding-rules-general-single-source-info.md
+coding-rules-general-user-facing-short-copy-punctuation.md
+coding-rules-general-verify-value-ownership.md
+coding-rules-github-actions-pin-to-sha.md
+!coding-rules-godot-gdscript-and-project-layout.md
+!coding-rules-supabase-sql-function-privileges.md
+!coding-rules-swift-memberwise-initializer.md
