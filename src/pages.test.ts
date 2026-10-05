@@ -94,6 +94,21 @@ describe("page login", () => {
     expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
+  it.each([
+    ["multipart/form-data", "token=x"],
+    ["multipart/form-data; boundary=missing", "token=x"],
+  ])("answers 400, not 500, to an unparsable login form sent as %s", async (contentType, body) => {
+    const response = await SELF.fetch(`${origin}/login`, {
+      method: "POST",
+      headers: { "Content-Type": contentType },
+      body,
+      redirect: "manual",
+    });
+    expect(response.status).toBe(400);
+    expect(response.headers.get("Content-Type")).toContain("text/html");
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+  });
+
   it("sets an HttpOnly, Secure, SameSite=Lax session cookie for the right token and returns to next", async () => {
     const created = await createPreview("/repos/alice/pages-login/issues", {
       title: "Visible after login",
@@ -183,6 +198,121 @@ describe("preview pages", () => {
     expect(page).toContain("&lt;script&gt;alert(&quot;raw&quot;)&lt;/script&gt;");
     expect(page).not.toContain("<script>");
     expect(page).not.toContain('href="javascript:');
+    expect(page).toContain("No possible leaks found");
+    expect(page).toContain(
+      "Checked the body and 0 comments for phone numbers, email addresses, home directory paths, and API-key-looking strings",
+    );
+    expect(page).not.toContain("<mark");
+  });
+
+  it("count and mark the possible leaks of the body and the comments", async () => {
+    // Made-up values. The token is built at run time so that no token-shaped string is committed.
+    const fakeGitHubToken = `ghp_${"A1b2C3d4E5".repeat(3)}F6g7H8`;
+    const created = await createPreview("/repos/alice/pages-leaks/issues", {
+      title: "Leaks",
+      body: [
+        "Call 03-0000-0000 or mail alice@corp.invalid.",
+        "",
+        "Run it in `/Users/alice/worktrees/demo`.",
+        "",
+        "![shot](/Users/alice/Desktop/shot.png)",
+        "",
+        "See the [build log](/home/太郎/build.log).",
+        "",
+        "Not leaks: someone@example.com, ISBN 978-4-87311-565-8, 2026-10-06T12:34:56Z.",
+      ].join("\n"),
+    });
+    await SELF.fetch(`${origin}/repos/alice/pages-leaks/issues/${created.number}/comments`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.PRE_GITHUB_TOKEN}` },
+      body: JSON.stringify({ body: `token: ${fakeGitHubToken}` }),
+    });
+    const page = await (
+      await getPage(new URL(created.html_url).pathname, await sessionCookie())
+    ).text();
+    expect(page).toContain("6 possible leaks found in this preview");
+    expect(page).toContain(
+      "1 phone number · 1 email address · 3 home directory paths · 1 API-key-looking string",
+    );
+    expect(page.match(/<mark /g)).toHaveLength(6);
+    expect(page).toContain('<mark title="Possible phone number">03-0000-0000</mark>');
+    // An autolink shows its address, so its text is marked and its href is not searched again.
+    expect(page).toContain(
+      '<a href="mailto:alice@corp.invalid"><mark title="Possible email address">alice@corp.invalid</mark></a>.',
+    );
+    expect(page).toContain(
+      '<code><mark title="Possible home directory path">/Users/alice/worktrees/demo</mark></code>',
+    );
+    // An image's address is not shown, so the whole image is marked.
+    expect(page).toContain(
+      '<mark title="Possible home directory path"><img src="/Users/alice/Desktop/shot.png" alt="shot"></mark>',
+    );
+    // A link target is searched decoded, so a percent-encoded name is still found.
+    expect(page).toContain(
+      '<mark title="Possible home directory path"><a href="/home/%E5%A4%AA%E9%83%8E/build.log">build log</a></mark>.',
+    );
+    expect(page).toContain(
+      `<mark title="Possible API-key-looking string">${fakeGitHubToken}</mark>`,
+    );
+    expect(page).toContain('<a href="mailto:someone@example.com">someone@example.com</a>');
+  });
+
+  it("mark each possible leak of a link's or an image's address, title, and alt text", async () => {
+    const created = await createPreview("/repos/alice/pages-hidden-leaks/issues", {
+      title: "Hidden leaks",
+      body: [
+        '[log](https://h.invalid/?p=/Users/alice&m=bob@corp.invalid "Ask carol@corp.invalid")',
+        "",
+        "![03-0000-0000](https://i.invalid/a.png)",
+      ].join("\n"),
+    });
+    const page = await (
+      await getPage(new URL(created.html_url).pathname, await sessionCookie())
+    ).text();
+    expect(page).toContain("4 possible leaks found in this preview");
+    expect(page).toContain("1 phone number · 2 email addresses · 1 home directory path");
+    expect(page.match(/<mark /g)).toHaveLength(4);
+    expect(page.match(/<\/mark>/g)).toHaveLength(4);
+  });
+
+  it("not claim to have checked the diff of a pull request sent without one", async () => {
+    const created = await createPreview("/repos/alice/pages-no-diff/pulls", {
+      title: "No diff",
+      head: "feature",
+      base: "main",
+    });
+    const page = await (
+      await getPage(new URL(created.html_url).pathname, await sessionCookie())
+    ).text();
+    expect(page).toContain("No possible leaks found");
+    expect(page).toContain("Checked the body and 0 comments for");
+    expect(page).not.toContain("the added lines of the diff");
+  });
+
+  it("mark the possible leaks of added lines only, not of removed or unchanged lines", async () => {
+    const created = await createPreview("/repos/alice/pages-diff-leaks/pulls", {
+      title: "Diff leaks",
+      head: "feature",
+      base: "main",
+      diff: [
+        "diff --git a/.env b/.env",
+        "--- a/.env",
+        "+++ b/.env",
+        "@@ -1,2 +1,2 @@",
+        " HOME=/home/alice",
+        "-MAIL=bob@corp.invalid",
+        "+MAIL=carol@corp.invalid",
+        "",
+      ].join("\n"),
+    });
+    const page = await (
+      await getPage(new URL(created.html_url).pathname, await sessionCookie())
+    ).text();
+    expect(page).toContain("1 possible leak found in this preview");
+    expect(page.match(/<mark /g)).toHaveLength(1);
+    expect(page).toContain('+MAIL=<mark title="Possible email address">carol@corp.invalid</mark>');
+    expect(page).toContain("-MAIL=bob@corp.invalid");
+    expect(page).toContain(" HOME=/home/alice");
   });
 
   it("render the comments of an issue", async () => {
@@ -273,6 +403,9 @@ describe("preview pages", () => {
       await getPage(new URL(created.html_url).pathname, await sessionCookie())
     ).text();
     expect(page).toContain("The stored diff could not be read as a unified diff");
+    // A diff that was not searched is not reported as free of leaks.
+    expect(page).toContain("The diff was not checked for possible leaks");
+    expect(page).not.toContain("No possible leaks found");
   });
 
   it("keep the page when parse-diff throws on a malformed diff", async () => {

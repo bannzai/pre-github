@@ -18,6 +18,13 @@ code,pre,.diff-table{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Con
 .repo-nav a[aria-current="page"]{background:#ffffff;border-bottom:2px solid #fd8c73}
 .preview-note{margin-left:auto;display:flex;align-items:center;gap:8px;color:#59636e}
 .preview-note::before{content:"";width:8px;height:8px;border-radius:50%;background:#1a7f37}
+.leak-banner{display:flex;align-items:flex-start;gap:12px;padding:12px 32px;border-bottom:1px solid}
+.leak-banner svg{flex:none}
+.leak-banner-clear{background:#dafbe1;border-color:#4ac26b;color:#1a7f37}
+.leak-banner-found{background:#fff3cd;border-color:#d4a72c;color:#9a6700}
+.leak-banner-text{display:flex;flex-wrap:wrap;gap:4px 12px;min-width:0}
+.leak-banner-text span{color:#1f2328}
+mark{background:#fff8c5;outline:2px solid #d4a72c;color:#1f2328;border-radius:2px}
 main{padding:24px 32px;display:flex;flex-direction:column;gap:16px}
 .title-row{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
 .title-row h1{margin:0;flex:1 1 500px;min-width:0;font-size:32px;font-weight:400;line-height:1.25;overflow-wrap:anywhere}
@@ -115,5 +122,5 @@ main{padding:24px 32px;display:flex;flex-direction:column;gap:16px}
 .login input{width:100%;padding:8px 12px;border:1px solid #d0d7de;border-radius:6px;font:inherit}
 .login .note{font-size:12px}
 .login .error{padding:8px 12px;border:1px solid #ff8182;border-radius:6px;background:#ffebe9;color:#d1242f}
-@media (max-width:640px){.app-header,main{padding-left:16px;padding-right:16px}.repo-nav,.preview-note{margin-left:0}.title-row h1{font-size:24px}.delete-confirm{left:0;right:auto}}
+@media (max-width:640px){.app-header,.leak-banner,main{padding-left:16px;padding-right:16px}.repo-nav,.preview-note{margin-left:0}.title-row h1{font-size:24px}.delete-confirm{left:0;right:auto}}
 `;

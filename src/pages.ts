@@ -4,6 +4,7 @@ import { createMiddleware } from "hono/factory";
 import { html, raw } from "hono/html";
 import parseDiff from "parse-diff";
 import { isInstanceToken } from "./auth";
+import { leakKindNames, leakKinds, markLeaks, type LeakCounts } from "./leaks";
 import { renderMarkdown } from "./markdown";
 import { pageStyle } from "./page-style";
 import {
@@ -44,7 +45,7 @@ const pageHeaders = {
 function pageResponse(
   c: PageContext,
   content: PageHtml,
-  status: 200 | 401 | 403 | 404 | 413,
+  status: 200 | 400 | 401 | 403 | 404 | 413,
 ): Response | Promise<Response> {
   return c.html(content, status, pageHeaders);
 }
@@ -135,11 +136,86 @@ function stateBadge(preview: Pick<PreviewRow, "kind" | "state">): PageHtml {
   >`;
 }
 
-/** `text` rendered as GitHub Flavored Markdown, or GitHub's placeholder for an empty body. */
-function markdownBody(text: string | null): PageHtml {
+/**
+ * `text` rendered as GitHub Flavored Markdown with its possible leaks marked, or GitHub's
+ * placeholder for an empty body. Adds the marked leaks to `leakCounts`.
+ */
+function markdownBody(text: string | null, leakCounts: LeakCounts): PageHtml {
   return text
-    ? html`<div class="markdown-body">${raw(renderMarkdown(text))}</div>`
+    ? html`<div class="markdown-body">${raw(renderMarkdown(text, leakCounts))}</div>`
     : html`<div class="markdown-body"><p class="empty-body">No description provided.</p></div>`;
+}
+
+/** GitHub's check icon, drawn in the current text color. */
+const checkIcon = raw(
+  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
+);
+
+/** GitHub's alert icon (an exclamation mark in a triangle), drawn in the current text color. */
+const alertIcon = raw(
+  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>',
+);
+
+/** Joins words into an English list: `a and b`, `a, b, and c`. */
+const englishList = new Intl.ListFormat("en", { type: "conjunction" });
+
+/**
+ * The band under the header of a preview page, from the gate 2 mockups: how many possible leaks
+ * (src/leaks.ts) the page marked, by kind, or what was searched when none were found.
+ * `commentCount` is the preview's number of comments. `diffSearch` is whether the added lines of
+ * a pull request's diff were searched, or could not be because the stored diff could not be read
+ * (an unsearched diff is never reported as free of leaks), or there is no diff (an issue, or a
+ * pull request sent without one).
+ */
+function leakBanner(
+  leakCounts: LeakCounts,
+  commentCount: number,
+  diffSearch: "searched" | "unreadable" | "none",
+): PageHtml {
+  const foundKinds = leakKinds.filter((leakKind) => leakCounts[leakKind] > 0);
+  const unreadableNote =
+    diffSearch === "unreadable" ? " The stored diff could not be read, so it was not checked." : "";
+  if (foundKinds.length === 0) {
+    const searchedParts = [
+      "the body",
+      `${commentCount} ${commentCount === 1 ? "comment" : "comments"}`,
+      ...(diffSearch === "searched" ? ["the added lines of the diff"] : []),
+    ];
+    const searched = `Checked ${englishList.format(searchedParts)} for ${englishList.format(leakKinds.map((leakKind) => leakKindNames[leakKind][1]))}`;
+    if (diffSearch === "unreadable") {
+      return html`<div class="leak-banner leak-banner-found">
+        ${alertIcon}
+        <div class="leak-banner-text">
+          <strong>The diff was not checked for possible leaks</strong>
+          <span>${searched} and found none.${unreadableNote}</span>
+        </div>
+      </div>`;
+    }
+    return html`<div class="leak-banner leak-banner-clear">
+      ${checkIcon}
+      <div class="leak-banner-text">
+        <strong>No possible leaks found</strong>
+        <span>${searched}</span>
+      </div>
+    </div>`;
+  }
+  const total = foundKinds.reduce((sum, leakKind) => sum + leakCounts[leakKind], 0);
+  const summary = foundKinds
+    .map(
+      (leakKind) =>
+        `${leakCounts[leakKind]} ${leakKindNames[leakKind][leakCounts[leakKind] === 1 ? 0 : 1]}`,
+    )
+    .join(" · ");
+  return html`<div class="leak-banner leak-banner-found">
+    ${alertIcon}
+    <div class="leak-banner-text">
+      <strong>${total} possible ${total === 1 ? "leak" : "leaks"} found in this preview</strong>
+      <span
+        >${summary}. Highlighted below; fix them before sending this to
+        GitHub.${unreadableNote}</span
+      >
+    </div>
+  </div>`;
 }
 
 /**
@@ -248,8 +324,21 @@ function lineCounts(counts: { additions: number; deletions: number }): PageHtml 
     ><span class="deletions">−${counts.deletions}</span>`;
 }
 
-/** One line of a diff as a table row: old and new line numbers, then the line with its marker. */
-function diffLine(change: parseDiff.Change): PageHtml {
+/**
+ * `content`, an added line of a diff with its `+` marker, as HTML with the possible leaks after
+ * the marker marked and added to `leakCounts`. The marker is left out of the search so that it
+ * is not read as the `+` of a phone number or as part of a key.
+ */
+function markedAddition(content: string, leakCounts: LeakCounts): PageHtml {
+  return raw(`${content.slice(0, 1)}${markLeaks(content.slice(1), leakCounts)}`);
+}
+
+/**
+ * One line of a diff as a table row: old and new line numbers, then the line with its marker. An
+ * added line has its possible leaks marked and added to `leakCounts`; removed and unchanged lines
+ * are not searched, since sending the change does not add them.
+ */
+function diffLine(change: parseDiff.Change, leakCounts: LeakCounts): PageHtml {
   // parse-diff gives `\ No newline at end of file` the type and line numbers of the line before
   // it; it is a note about that line, not an added or removed line of its own.
   if (change.content.startsWith("\\ ")) {
@@ -264,7 +353,7 @@ function diffLine(change: parseDiff.Change): PageHtml {
       return html`<tr class="diff-line-addition">
         <td class="line-number"></td>
         <td class="line-number">${change.ln}</td>
-        <td class="line-code">${change.content}</td>
+        <td class="line-code">${markedAddition(change.content, leakCounts)}</td>
       </tr>`;
     case "del":
       return html`<tr class="diff-line-deletion">
@@ -283,9 +372,14 @@ function diffLine(change: parseDiff.Change): PageHtml {
 
 /**
  * The "Files changed" part of a pull request page: the file list, then each file's diff.
- * `files` is `storedDiff` (the `diff` column) as parsed.
+ * `files` is `storedDiff` (the `diff` column) as parsed. Adds the possible leaks marked in the
+ * added lines to `leakCounts`.
  */
-function filesSection(files: parseDiff.File[], storedDiff: string | null): PageHtml {
+function filesSection(
+  files: parseDiff.File[],
+  storedDiff: string | null,
+  leakCounts: LeakCounts,
+): PageHtml {
   const total = files.reduce(
     (sum, file) => ({
       additions: sum.additions + file.additions,
@@ -333,7 +427,7 @@ function filesSection(files: parseDiff.File[], storedDiff: string | null): PageH
                                 <td class="line-number"></td>
                                 <td class="line-code">${chunk.content}</td>
                               </tr>
-                              ${chunk.changes.map(diffLine)}`,
+                              ${chunk.changes.map((change) => diffLine(change, leakCounts))}`,
                         )}
                       </tbody>
                     </table>
@@ -358,13 +452,36 @@ function parsedDiffFiles(storedDiff: string | null): parseDiff.File[] {
   }
 }
 
-/** The page of one issue or pull request with its comments, and for a pull request its diff. */
+/** One comment of a preview page, with its possible leaks marked and added to `leakCounts`. */
+function commentItem(comment: CommentRow, leakCounts: LeakCounts): PageHtml {
+  return html`<article class="timeline-item" id="issuecomment-${comment.id}">
+    <div class="timeline-item-header">Commented ${timeElement(comment.created_at)}</div>
+    ${markdownBody(comment.body, leakCounts)}
+  </article>`;
+}
+
+/**
+ * The page of one issue or pull request with its comments, and for a pull request its diff, with
+ * the possible leaks of the body, the comments, and the added lines counted in a band at the top.
+ */
 function previewPage(preview: PreviewRow & { diff: string | null }, comments: CommentRow[]) {
   const files = preview.kind === "pull" ? parsedDiffFiles(preview.diff) : [];
+  // The parts are rendered before the band, which shows what their rendering counted.
+  const leakCounts: LeakCounts = { phone: 0, email: 0, homePath: 0, apiKey: 0 };
+  const body = markdownBody(preview.body, leakCounts);
+  const commentItems = comments.map((comment) => commentItem(comment, leakCounts));
+  const filesPart = preview.kind === "pull" ? filesSection(files, preview.diff, leakCounts) : "";
+  // A stored diff that parses into no file is one `filesSection` says could not be read.
+  const diffSearch =
+    preview.kind === "issue" || !preview.diff?.trim()
+      ? "none"
+      : files.length === 0
+        ? "unreadable"
+        : "searched";
   return htmlDocument(
     `${preview.title} · ${preview.kind === "pull" ? "Pull Request" : "Issue"} #${preview.number} · ${preview.owner}/${preview.repo}`,
     html`<div class="page">
-      ${repositoryHeader(preview)}
+      ${repositoryHeader(preview)} ${leakBanner(leakCounts, comments.length, diffSearch)}
       <main>
         <div class="title-row">
           <h1>${preview.title} <span class="number">#${preview.number}</span></h1>
@@ -386,17 +503,11 @@ function previewPage(preview: PreviewRow & { diff: string | null }, comments: Co
         <section id="conversation" class="timeline">
           <article class="timeline-item">
             <div class="timeline-item-header">Opened ${timeElement(preview.created_at)}</div>
-            ${markdownBody(preview.body)}
+            ${body}
           </article>
-          ${comments.map(
-            (comment) =>
-              html`<article class="timeline-item" id="issuecomment-${comment.id}">
-                <div class="timeline-item-header">Commented ${timeElement(comment.created_at)}</div>
-                ${markdownBody(comment.body)}
-              </article>`,
-          )}
+          ${commentItems}
         </section>
-        ${preview.kind === "pull" ? filesSection(files, preview.diff) : ""}
+        ${filesPart}
         <footer class="send-hint">
           <span>When it looks right, send the same title and body to GitHub:</span>
           <code
@@ -706,7 +817,16 @@ pages.post(
       ),
   }),
   async (c) => {
-    const form = await c.req.parseBody();
+    // parseBody throws on a body its Content-Type cannot read, such as `multipart/form-data`
+    // without a boundary. That is a bad request, not a server error.
+    const form = await c.req.parseBody().catch(() => undefined);
+    if (!form) {
+      return pageResponse(
+        c,
+        messagePage("The form could not be read", "Send the token from the sign-in page."),
+        400,
+      );
+    }
     const next = localPath(c.req.url, form.next);
     const presentedToken = typeof form.token === "string" ? form.token : "";
     if (!(await isInstanceToken(c.env, presentedToken))) {
