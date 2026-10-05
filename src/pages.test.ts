@@ -153,6 +153,8 @@ describe("preview pages", () => {
         "",
         "See https://example.com/docs",
         "",
+        "Update README.md and main.py, then read www.example.com/guide.",
+        "",
         '<script>alert("raw")</script>',
         "",
         "[click](javascript:alert(1))",
@@ -170,6 +172,9 @@ describe("preview pages", () => {
     expect(page).toContain('<code class="language-ts">');
     expect(page).toContain('<img src="https://example.com/diagram.png" alt="diagram">');
     expect(page).toContain('<a href="https://example.com/docs">https://example.com/docs</a>');
+    // GitHub links neither file names nor hosts without `www.` or a scheme.
+    expect(page).toContain("Update README.md and main.py, then read");
+    expect(page).toContain('<a href="http://www.example.com/guide">www.example.com/guide</a>.');
     expect(page).toContain("&lt;script&gt;alert(&quot;raw&quot;)&lt;/script&gt;");
     expect(page).not.toContain("<script>");
     expect(page).not.toContain('href="javascript:');
