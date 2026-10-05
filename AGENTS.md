@@ -18,7 +18,7 @@ Building, testing, and opening a browser happen on an external machine, not on t
 - Wait for and read the result: `gh pr checks <PR> --watch`. Failures: `gh run view <run ID> --log-failed`
 - Looking at pages: the `e2e` job uploads Playwright's output (including screenshots) as the `e2e-screenshots` artifact. Fetch it with `gh run download <run ID> -n e2e-screenshots -D ./tmp/e2e-screenshots-<run ID>` and Read the PNG files
 - When adding page behaviour, drive that page in an E2E test under `e2e/tests/` and save a screenshot with `testInfo.outputPath(...)`. That screenshot is the evidence of the change
-- Unit tests run inside the Workers runtime (`@cloudflare/vitest-pool-workers`) against a local D1 with the migrations in `migrations/` applied. E2E starts `wrangler dev` on the runner with a local D1
+- Unit tests run inside the Workers runtime (`@cloudflare/vitest-plugin`) against a local D1 with the migrations in `migrations/` applied. E2E starts `wrangler dev` on the runner with a local D1
 - To operate a page by hand instead of through a test, use the `webtunnel` skill, which drives Chromium on a GitHub Actions runner. Start a session with `WEBTUNNEL_REPO=bannzai/pre-github`; the runner applies the migrations to a local D1 and starts `wrangler dev` (`.github/workflows/browser-session.yml`). This repository is public, so the recording and screenshots of the session are public artifacts: never send a real PR body or a real secret to that session
 - Deploying bannzai's own instance is `.github/workflows/deploy.yml`, run by hand (`workflow_dispatch`) only. Merging to `main` does not deploy
 
