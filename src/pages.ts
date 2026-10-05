@@ -457,8 +457,7 @@ function previewPage(preview: PreviewRow & { diff: string | null }, comments: Co
   return htmlDocument(
     `${preview.title} · ${preview.kind === "pull" ? "Pull Request" : "Issue"} #${preview.number} · ${preview.owner}/${preview.repo}`,
     html`<div class="page">
-      ${repositoryHeader(preview)}
-      ${leakBanner(leakCounts, preview.kind, comments.length)}
+      ${repositoryHeader(preview)} ${leakBanner(leakCounts, preview.kind, comments.length)}
       <main>
         <div class="title-row">
           <h1>${preview.title} <span class="number">#${preview.number}</span></h1>
