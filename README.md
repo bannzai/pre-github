@@ -53,9 +53,11 @@ scripts/preview-issue.sh --title "Example" --body-file body.md [--owner <owner>]
 Open the URL, fix `body.md` and send again until the page looks right, then send the same title and body to the real GitHub:
 
 ```sh
-gh pr create --title "Add leak highlight" --body-file body.md
-gh issue create --title "Example" --body-file body.md
+gh pr create --title "Add leak highlight" --body-file body.md [--base <branch>] [--repo <owner>/<repo>]
+gh issue create --title "Example" --body-file body.md [--repo <owner>/<repo>]
 ```
+
+When the preview used `--base`, `--owner`, or `--repo`, pass the same branch to `--base` (a branch name such as `main`, not `origin/main`) and the same `<owner>/<repo>` to `--repo`, so the real GitHub gets the diff and repository you reviewed. `PRE_GITHUB_HOST` cannot be `github.com`; the scripts refuse it so a preview never goes to the real GitHub.
 
 Or call the API directly:
 

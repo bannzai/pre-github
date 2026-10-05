@@ -7,12 +7,16 @@ preview_fail() {
   exit 1
 }
 
-# Exits 1 unless PRE_GITHUB_HOST and GH_ENTERPRISE_TOKEN are set and jq is installed.
+# Exits 1 unless PRE_GITHUB_HOST and GH_ENTERPRISE_TOKEN are set, PRE_GITHUB_HOST is not
+# github.com, and jq is installed.
 # gh reads GH_ENTERPRISE_TOKEN for every host other than github.com (`gh help environment`), so the
 # token is required here instead of falling back to a stored `gh auth login`, which would be
 # looked up for the pre-github host and fail with a less clear message.
 preview_require_environment() {
   [ -n "${PRE_GITHUB_HOST:-}" ] || preview_fail "PRE_GITHUB_HOST is not set (the host of your pre-github instance)"
+  # gh would send the preview to the real GitHub with its stored credentials, which is the
+  # publication this script exists to come before.
+  [ "$(printf '%s' "$PRE_GITHUB_HOST" | tr '[:upper:]' '[:lower:]')" != "github.com" ] || preview_fail "PRE_GITHUB_HOST must be your pre-github instance, not github.com"
   [ -n "${GH_ENTERPRISE_TOKEN:-}" ] || preview_fail "GH_ENTERPRISE_TOKEN is not set (the PRE_GITHUB_TOKEN of your instance)"
   command -v jq >/dev/null 2>&1 || preview_fail "jq is required to build the request body"
 }

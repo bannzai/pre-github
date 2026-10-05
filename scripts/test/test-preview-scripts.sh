@@ -113,6 +113,15 @@ run env PRE_GITHUB_HOST= "$scripts_dir/preview-pr.sh" --title "No host"
 assert_equal "pr without host: status" "$status" 1
 assert_contains "pr without host: reason" "$err" "PRE_GITHUB_HOST is not set"
 
+run env PRE_GITHUB_HOST=GitHub.com "$scripts_dir/preview-pr.sh" --title "Real GitHub"
+assert_equal "pr to github.com: status" "$status" 1
+assert_contains "pr to github.com: reason" "$err" "not github.com"
+assert_equal "pr to github.com: gh is not called" "$(cat "$work/args")" ""
+
+run env PRE_GITHUB_HOST=github.com "$scripts_dir/preview-issue.sh" --title "Real GitHub"
+assert_equal "issue to github.com: status" "$status" 1
+assert_equal "issue to github.com: gh is not called" "$(cat "$work/args")" ""
+
 run "$scripts_dir/preview-pr.sh"
 assert_equal "pr without title: status" "$status" 1
 assert_contains "pr without title: reason" "$err" "--title is required"
