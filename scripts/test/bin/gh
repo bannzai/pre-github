@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Stand-in for gh used by scripts/test/test-preview-scripts.sh. Writes its arguments, one per line,
+# to $GH_STUB_DIR/args and its stdin to $GH_STUB_DIR/input.json, then answers like
+# `gh api --jq .html_url` would: a URL on stdout, or an API error on stderr with exit 1 when
+# GH_STUB_FAIL is set.
+set -euo pipefail
+
+printf '%s\n' "$@" >"$GH_STUB_DIR/args"
+cat >"$GH_STUB_DIR/input.json"
+if [ -n "${GH_STUB_FAIL:-}" ]; then
+  echo "gh: Not Found (HTTP 404)" >&2
+  exit 1
+fi
+echo "https://$PRE_GITHUB_HOST/created"

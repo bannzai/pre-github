@@ -28,11 +28,33 @@ The deploy prints the URL of your instance (`https://pre-github.<account>.worker
 
 ## Usage
 
-Create a preview of a pull request from the current branch:
+The scripts need `gh` and `jq`. Point them at your instance:
 
 ```sh
-PRE_GITHUB_HOST=pre-github.<account>.workers.dev GH_ENTERPRISE_TOKEN=<token> \
-  scripts/preview-pr.sh --base main --title "Add leak highlight" --body-file body.md
+export PRE_GITHUB_HOST=pre-github.<account>.workers.dev
+export GH_ENTERPRISE_TOKEN=<token>   # the PRE_GITHUB_TOKEN of your instance
+```
+
+Create a preview of a pull request from the current branch (`git diff <base>...HEAD` is sent as the diff):
+
+```sh
+scripts/preview-pr.sh --title "Add leak highlight" --body-file body.md \
+  [--base origin/main] [--owner <owner>] [--repo <repo>]
+```
+
+Create a preview of an issue:
+
+```sh
+scripts/preview-issue.sh --title "Example" --body-file body.md [--owner <owner>] [--repo <repo>]
+```
+
+`--owner` and `--repo` default to the `origin` remote. Each script prints the `html_url` of the preview, and exits 1 with the reason on stderr when the token is missing, the branch has no changes, or the API returns an error. `--help` lists the options.
+
+Open the URL, fix `body.md` and send again until the page looks right, then send the same title and body to the real GitHub:
+
+```sh
+gh pr create --title "Add leak highlight" --body-file body.md
+gh issue create --title "Example" --body-file body.md
 ```
 
 Or call the API directly:
