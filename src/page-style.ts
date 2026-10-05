@@ -83,6 +83,7 @@ main{padding:24px 32px;display:flex;flex-direction:column;gap:16px}
 .file-list li+li{border-top:1px solid #d0d7de}
 .file{overflow:hidden;border:1px solid #d0d7de;border-radius:6px}
 .file-header{display:flex;align-items:center;gap:12px;padding:8px 16px;background:#f6f8fa;border-bottom:1px solid #d0d7de;flex-wrap:wrap}
+.file-note{margin:0;padding:8px 16px;border-bottom:1px solid #d0d7de;color:#59636e}
 .diff-scroll{overflow-x:auto}
 .diff-table{width:100%;border-collapse:collapse;line-height:20px}
 .line-number{width:1%;min-width:48px;padding:0 8px;color:#59636e;text-align:right;white-space:nowrap;user-select:none}

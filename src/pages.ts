@@ -200,6 +200,22 @@ function changedFileName(file: parseDiff.File): string {
   return newName === undefined || newName === oldName ? oldName : `${oldName} → ${newName}`;
 }
 
+/**
+ * What changed in a file besides its lines, as GitHub notes it above the diff: a mode change,
+ * and for a file without hunks, whether it was an empty file added or deleted, or a rename.
+ */
+function fileChangeNotes(file: parseDiff.File): string[] {
+  const modeNote =
+    file.oldMode && file.newMode && file.oldMode !== file.newMode
+      ? [`File mode changed from ${file.oldMode} to ${file.newMode}`]
+      : [];
+  if (file.chunks.length > 0) return modeNote;
+  if (file.new) return [...modeNote, "Empty file added"];
+  if (file.deleted) return [...modeNote, "Empty file deleted"];
+  if (file.from !== file.to) return [...modeNote, "File renamed without changes"];
+  return modeNote.length > 0 ? modeNote : ["No text changes"];
+}
+
 /** The `+additions −deletions` counts of a file or of the whole diff. */
 function lineCounts(counts: { additions: number; deletions: number }): PageHtml {
   return html`<span class="additions">+${counts.additions}</span
@@ -271,6 +287,7 @@ function filesSection(files: parseDiff.File[], storedDiff: string | null): PageH
                   <div class="file-header">
                     <code>${changedFileName(file)}</code>${lineCounts(file)}
                   </div>
+                  ${fileChangeNotes(file).map((note) => html`<p class="file-note">${note}</p>`)}
                   <div class="diff-scroll">
                     <table class="diff-table">
                       <tbody>
@@ -292,9 +309,23 @@ function filesSection(files: parseDiff.File[], storedDiff: string | null): PageH
   </section>`;
 }
 
+/**
+ * `storedDiff` (the `diff` column) parsed into files, or no file when parse-diff cannot read it.
+ * parse-diff throws on some malformed input, such as a `\ No newline at end of file` line right
+ * after a hunk header; `filesSection` then says the diff could not be read, and the rest of the
+ * page, including the delete button, still renders.
+ */
+function parsedDiffFiles(storedDiff: string | null): parseDiff.File[] {
+  try {
+    return parseDiff(storedDiff);
+  } catch {
+    return [];
+  }
+}
+
 /** The page of one issue or pull request with its comments, and for a pull request its diff. */
 function previewPage(preview: PreviewRow & { diff: string | null }, comments: CommentRow[]) {
-  const files = preview.kind === "pull" ? parseDiff(preview.diff) : [];
+  const files = preview.kind === "pull" ? parsedDiffFiles(preview.diff) : [];
   return htmlDocument(
     `${preview.title} · ${preview.kind === "pull" ? "Pull Request" : "Issue"} #${preview.number} · ${preview.owner}/${preview.repo}`,
     html`<div class="page">

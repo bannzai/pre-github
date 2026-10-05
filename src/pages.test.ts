@@ -250,6 +250,43 @@ describe("preview pages", () => {
     expect(page).toContain("The stored diff could not be read as a unified diff");
   });
 
+  it("keep the page when parse-diff throws on a malformed diff", async () => {
+    const created = await createPreview("/repos/alice/pages-malformed/pulls", {
+      title: "Malformed diff",
+      head: "feature",
+      base: "main",
+      // parse-diff 0.12.0 throws on a `\ No newline` line right after a hunk header.
+      diff: "@@ -1 +1 @@\n\\ No newline at end of file\n",
+    });
+    const response = await getPage(new URL(created.html_url).pathname, await sessionCookie());
+    expect(response.status).toBe(200);
+    const page = await response.text();
+    expect(page).toContain("The stored diff could not be read as a unified diff");
+    expect(page).toContain("Delete preview");
+  });
+
+  it("note a mode change and an empty new file, which have no hunks", async () => {
+    const created = await createPreview("/repos/alice/pages-modes/pulls", {
+      title: "Modes",
+      head: "feature",
+      base: "main",
+      diff: [
+        "diff --git a/run.sh b/run.sh",
+        "old mode 100644",
+        "new mode 100755",
+        "diff --git a/empty.txt b/empty.txt",
+        "new file mode 100644",
+        "index 0000000..e69de29",
+        "",
+      ].join("\n"),
+    });
+    const page = await (
+      await getPage(new URL(created.html_url).pathname, await sessionCookie())
+    ).text();
+    expect(page).toContain("File mode changed from 100644 to 100755");
+    expect(page).toContain("Empty file added");
+  });
+
   it("show a non-ASCII file name that Git quoted with octal escapes as text", async () => {
     // `git diff` with the default core.quotePath writes 日本.md as "\346\227\245\346\234\254.md".
     const quotedPath = "\\346\\227\\245\\346\\234\\254.md";
