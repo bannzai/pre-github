@@ -217,6 +217,8 @@ describe("preview pages", () => {
         "",
         "![shot](/Users/alice/Desktop/shot.png)",
         "",
+        "See the [build log](/home/太郎/build.log).",
+        "",
         "Not leaks: someone@example.com, ISBN 978-4-87311-565-8, 2026-10-06T12:34:56Z.",
       ].join("\n"),
     });
@@ -228,11 +230,11 @@ describe("preview pages", () => {
     const page = await (
       await getPage(new URL(created.html_url).pathname, await sessionCookie())
     ).text();
-    expect(page).toContain("5 possible leaks found in this preview");
+    expect(page).toContain("6 possible leaks found in this preview");
     expect(page).toContain(
-      "1 phone number · 1 email address · 2 home directory paths · 1 API-key-looking string",
+      "1 phone number · 1 email address · 3 home directory paths · 1 API-key-looking string",
     );
-    expect(page.match(/<mark /g)).toHaveLength(5);
+    expect(page.match(/<mark /g)).toHaveLength(6);
     expect(page).toContain('<mark title="Possible phone number">03-0000-0000</mark>');
     expect(page).toContain('<mark title="Possible email address">alice@corp.invalid</mark>.');
     expect(page).toContain(
@@ -241,6 +243,10 @@ describe("preview pages", () => {
     // An image's address is not shown, so the whole image is marked.
     expect(page).toContain(
       '<mark title="Possible home directory path"><img src="/Users/alice/Desktop/shot.png" alt="shot"></mark>',
+    );
+    // A link target is searched decoded, so a percent-encoded name is still found.
+    expect(page).toContain(
+      '<mark title="Possible home directory path"><a href="/home/%E5%A4%AA%E9%83%8E/build.log">build log</a></mark>.',
     );
     expect(page).toContain(
       `<mark title="Possible API-key-looking string">${fakeGitHubToken}</mark>`,

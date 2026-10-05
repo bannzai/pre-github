@@ -60,10 +60,15 @@ markdown.renderer.rules.fence = (tokens, index, options, env, renderer) => {
 
 /**
  * The start tag of the `<mark>` around a link or an image whose address `attribute` of `token`
- * holds possible leaks, or `""` when it holds none. Adds those leaks to the counts of `env`.
+ * holds possible leaks, or `""` when it holds none. Adds those leaks to the counts of `env`. The
+ * address is searched decoded, since markdown-it percent-encodes it (`/Users/太郎` would
+ * otherwise not read as a home directory path).
  */
 function addressLeakMarkStart(token: Token, attribute: "href" | "src", env: Env | undefined) {
-  const leaks = token.info === "auto" ? [] : findLeaks(token.attrGet(attribute) ?? "");
+  const leaks =
+    token.info === "auto"
+      ? []
+      : findLeaks(markdown.normalizeLinkText(String(token.attrGet(attribute) ?? "")));
   for (const leak of leaks) leakCountsOf(env)[leak.kind] += 1;
   return leaks.length === 0 ? "" : leakMarkStart(leaks.map((leak) => leak.kind));
 }
@@ -78,10 +83,11 @@ markdown.renderer.rules.image = (tokens, index, options, env, renderer) => {
 markdown.renderer.rules.link_open = (tokens, index, options, env, renderer) => {
   const markStart = addressLeakMarkStart(tokens[index]!, "href", env);
   // Links do not nest, so the first `link_close` after this token closes this link and the mark.
-  if (markStart) {
-    tokens.slice(index).find((token) => token.type === "link_close")!.meta = {
-      closesLeakMark: true,
-    };
+  for (let later = index + 1; markStart && later < tokens.length; later += 1) {
+    if (tokens[later]!.type === "link_close") {
+      tokens[later]!.meta = { closesLeakMark: true };
+      break;
+    }
   }
   return `${markStart}${renderer.renderToken(tokens, index, options)}`;
 };
