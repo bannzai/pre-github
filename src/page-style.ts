@@ -91,6 +91,7 @@ main{padding:24px 32px;display:flex;flex-direction:column;gap:16px}
 .diff-hunk{background:#ddf4ff;color:#59636e}
 .diff-line-addition{background:#dafbe1}
 .diff-line-deletion{background:#ffebe9}
+.diff-line-note{color:#59636e}
 .list{border:1px solid #d0d7de;border-radius:6px}
 .list-header{display:flex;gap:16px;padding:16px;background:#f6f8fa;border-bottom:1px solid #d0d7de;border-radius:6px 6px 0 0}
 .list-header a{color:#59636e}

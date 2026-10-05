@@ -237,6 +237,31 @@ describe("preview pages", () => {
     expect(page).toContain('<code class="branch">feature</code>');
   });
 
+  it("show `No newline at end of file` as a note, not as an added or removed line", async () => {
+    const created = await createPreview("/repos/alice/pages-no-newline/pulls", {
+      title: "No newline",
+      head: "feature",
+      base: "main",
+      diff: [
+        "diff --git a/a.txt b/a.txt",
+        "--- a/a.txt",
+        "+++ b/a.txt",
+        "@@ -1 +1 @@",
+        "-old",
+        "\\ No newline at end of file",
+        "+new",
+        "\\ No newline at end of file",
+        "",
+      ].join("\n"),
+    });
+    const page = compactHtml(
+      await (await getPage(new URL(created.html_url).pathname, await sessionCookie())).text(),
+    );
+    expect(page.match(/class="diff-line-addition"/g)).toHaveLength(1);
+    expect(page.match(/class="diff-line-deletion"/g)).toHaveLength(1);
+    expect(page.match(/class="diff-line-note"/g)).toHaveLength(2);
+  });
+
   it("say so when a pull request's diff is not a unified diff", async () => {
     const created = await createPreview("/repos/alice/pages-unreadable/pulls", {
       title: "Not a diff",

@@ -250,6 +250,15 @@ function lineCounts(counts: { additions: number; deletions: number }): PageHtml 
 
 /** One line of a diff as a table row: old and new line numbers, then the line with its marker. */
 function diffLine(change: parseDiff.Change): PageHtml {
+  // parse-diff gives `\ No newline at end of file` the type and line numbers of the line before
+  // it; it is a note about that line, not an added or removed line of its own.
+  if (change.content.startsWith("\\ ")) {
+    return html`<tr class="diff-line-note">
+      <td class="line-number"></td>
+      <td class="line-number"></td>
+      <td class="line-code">${change.content}</td>
+    </tr>`;
+  }
   switch (change.type) {
     case "add":
       return html`<tr class="diff-line-addition">

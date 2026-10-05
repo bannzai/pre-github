@@ -1,6 +1,8 @@
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { requireToken } from "./auth";
+import { repos } from "./repos";
 
 describe("token authentication", () => {
   it.each([
@@ -26,6 +28,20 @@ describe("token authentication", () => {
       headers: { Authorization: `${scheme} ${env.PRE_GITHUB_TOKEN}` },
     });
     expect(response.status).toBe(200);
+  });
+
+  it("guards every API route, since the check sits on each route rather than on /repos/*", () => {
+    for (const route of repos.routes) {
+      expect(
+        repos.routes.some(
+          (guard) =>
+            guard.method === route.method &&
+            guard.path === route.path &&
+            guard.handler === requireToken,
+        ),
+        `${route.method} ${route.path}`,
+      ).toBe(true);
+    }
   });
 
   it("does not require the token for the health check", async () => {
