@@ -77,6 +77,9 @@ describe("issues", () => {
     expect(await getJson(path)).toEqual([]);
     expect(await getJson(`${path}?state=all`)).toHaveLength(1);
 
+    const unchanged = await api(`${path}/1`, { method: "PATCH", json: { state: null } });
+    expect(await unchanged.json()).toMatchObject({ title: "Renamed", state: "closed" });
+
     expect((await api(`${path}/1`, { method: "DELETE" })).status).toBe(204);
     expect((await api(`${path}/1`)).status).toBe(404);
     expect(await getJson(`${path}/1`)).toEqual(notFound);
@@ -142,7 +145,8 @@ describe("pull requests", () => {
     expect(await getJson(`${diffPath}/1`)).not.toHaveProperty("diff");
 
     await api(`${diffPath}/1`, { method: "PATCH", json: { diff: "+changed\n" } });
-    const patchedDiff = await api(`${diffPath}/1`, { accept: "application/vnd.github.diff" });
+    // `gh pr diff` asks with the v3 form of the media type.
+    const patchedDiff = await api(`${diffPath}/1`, { accept: "application/vnd.github.v3.diff" });
     expect(await patchedDiff.text()).toBe("+changed\n");
   });
 });
@@ -191,6 +195,7 @@ describe("numbering", () => {
     const last = await api(`${pagingPath}?per_page=2&page=2`);
     expect(await last.json()).toMatchObject([{ title: "a" }]);
     expect(last.headers.get("Link")).toBeNull();
+    expect(await getJson(`${pagingPath}?page=1e20`)).toEqual([]);
   });
 });
 
@@ -244,6 +249,17 @@ describe("comments", () => {
       const listed = await getJson<{ body: string }[]>(commentsPath);
       expect(listed.map((entry) => entry.body)).toEqual(["First comment", "Second comment"]);
     }
+  });
+
+  it("refuse an empty body, as GitHub does", async () => {
+    const repoPath = "/repos/alice/empty-comment";
+    await api(`${repoPath}/issues`, { method: "POST", json: { title: "Issue" } });
+    const empty = await api(`${repoPath}/issues/1/comments`, {
+      method: "POST",
+      json: { body: "" },
+    });
+    expect(empty.status).toBe(422);
+    expect(await empty.json()).toMatchObject({ message: "body must not be empty" });
   });
 
   it("are removed with their preview", async () => {

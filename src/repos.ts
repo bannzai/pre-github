@@ -37,6 +37,19 @@ type CommentRow = { id: number; body: string; created_at: string; updated_at: st
 /** The WHERE condition that selects the preview at `PreviewAddress`, bound as ?1 to ?4. */
 const previewAddressCondition = "owner = ?1 AND repo = ?2 AND number = ?3 AND kind = ?4";
 
+/**
+ * The WHERE condition that selects the preview at `PreviewAddress` (?1 to ?4) only when, patched
+ * with ?5 title, ?6 body, and ?8 diff (null keeps the stored value), its text columns stay within
+ * ?9 bytes in total. Checking the size in the UPDATE itself keeps concurrent patches from
+ * passing a check made on a value that changed before they write.
+ */
+const patchedPreviewCondition = `${previewAddressCondition}
+  AND length(CAST(owner AS BLOB)) + length(CAST(repo AS BLOB))
+    + coalesce(length(CAST(head AS BLOB)), 0) + coalesce(length(CAST(base AS BLOB)), 0)
+    + length(CAST(coalesce(?5, title) AS BLOB))
+    + coalesce(length(CAST(coalesce(?6, body) AS BLOB)), 0)
+    + coalesce(length(CAST(coalesce(?8, diff) AS BLOB)), 0) <= ?9`;
+
 /** The largest `body` or `diff` accepted, in bytes (.claude/rules/d1-database.md). */
 const maxTextBytes = 1_000_000;
 
@@ -128,7 +141,7 @@ async function readJsonObject(request: Request): Promise<Record<string, unknown>
 /**
  * Why `fields` cannot be stored, as a 422 message, or undefined when they can. `requiredNames`
  * must be present. Text fields must be strings within `maxTextBytes`, and `title`, `head`, and
- * `base` must not be empty; `state` must be `open` or `closed`. Other fields (such as `labels`)
+ * `base` must not be empty; `state` must be `open`, `closed`, or null. Other fields (such as `labels`)
  * are accepted and ignored.
  */
 function fieldsProblem(
@@ -147,7 +160,12 @@ function fieldsProblem(
       return `${name} is larger than ${maxTextBytes} bytes`;
     }
   }
-  if (fields.state !== undefined && fields.state !== "open" && fields.state !== "closed") {
+  if (
+    fields.state !== undefined &&
+    fields.state !== null &&
+    fields.state !== "open" &&
+    fields.state !== "closed"
+  ) {
     return "state must be open or closed";
   }
   return undefined;
@@ -187,8 +205,12 @@ type ListPage = {
 function listPage(url: URL): ListPage {
   // GitHub's default (30) and maximum (100) page sizes for the list endpoints.
   const limit = Math.min(positiveInteger(url.searchParams.get("per_page")) ?? 30, 100);
-  // GitHub starts at the first page when `page` is absent.
-  const page = positiveInteger(url.searchParams.get("page")) ?? 1;
+  // GitHub starts at the first page when `page` is absent. The cap keeps OFFSET a safe integer,
+  // which D1 binds as INTEGER; a page past it is empty anyway.
+  const page = Math.min(
+    positiveInteger(url.searchParams.get("page")) ?? 1,
+    Math.floor(Number.MAX_SAFE_INTEGER / limit),
+  );
   return { limit, offset: (page - 1) * limit, page };
 }
 
@@ -299,7 +321,8 @@ async function listPreviews(
 
 /**
  * `GET .../issues/{number}` and `GET .../pulls/{number}`: one preview. A pull request asked for
- * with `Accept: application/vnd.github.diff` answers its stored diff as text instead.
+ * with `Accept: application/vnd.github.diff` (or `application/vnd.github.v3.diff`, which
+ * `gh pr diff` sends) answers its stored diff as text instead.
  */
 async function getPreview(
   db: D1Database,
@@ -308,7 +331,7 @@ async function getPreview(
 ): Promise<Response> {
   if (
     address.kind === "pull" &&
-    request.headers.get("Accept")?.includes("application/vnd.github.diff")
+    /application\/vnd\.github(\.v3)?\.diff/.test(request.headers.get("Accept") ?? "")
   ) {
     const stored = await db
       .prepare(`SELECT diff FROM previews WHERE ${previewAddressCondition}`)
@@ -343,44 +366,24 @@ async function updatePreview(
   if (fields instanceof Response) return fields;
   const problem = fieldsProblem(fields, []);
   if (problem) return githubError(422, problem);
-  const stored = await db
-    .prepare(
-      `SELECT
-         length(CAST(owner AS BLOB)) + length(CAST(repo AS BLOB))
-           + coalesce(length(CAST(head AS BLOB)), 0)
-           + coalesce(length(CAST(base AS BLOB)), 0) AS unchanged_bytes,
-         length(CAST(title AS BLOB)) AS title_bytes,
-         coalesce(length(CAST(body AS BLOB)), 0) AS body_bytes,
-         coalesce(length(CAST(diff AS BLOB)), 0) AS diff_bytes
-       FROM previews WHERE ${previewAddressCondition}`,
-    )
-    .bind(address.owner, address.repo, Number(address.number), address.kind)
-    .first<{
-      unchanged_bytes: number;
-      title_bytes: number;
-      body_bytes: number;
-      diff_bytes: number;
-    }>();
-  if (!stored) return githubError(404, "Not Found");
-  const title = textField(fields, "title");
-  const body = textField(fields, "body");
-  const diff = address.kind === "pull" ? textField(fields, "diff") : null;
-  if (
-    stored.unchanged_bytes +
-      (title === null ? stored.title_bytes : byteLength(title)) +
-      (body === null ? stored.body_bytes : byteLength(body)) +
-      (diff === null ? stored.diff_bytes : byteLength(diff)) >
-    maxPreviewTextBytes
-  ) {
-    return githubError(422, previewTooLarge);
-  }
+  const patchedBindings = [
+    address.owner,
+    address.repo,
+    Number(address.number),
+    address.kind,
+    textField(fields, "title"),
+    textField(fields, "body"),
+    textField(fields, "state"),
+    address.kind === "pull" ? textField(fields, "diff") : null,
+    maxPreviewTextBytes,
+  ];
   const [, updated] = await db.batch<PreviewRow>([
     db
       .prepare(
         `INSERT INTO events (kind) SELECT 'updated'
-         WHERE EXISTS (SELECT 1 FROM previews WHERE ${previewAddressCondition})`,
+         WHERE EXISTS (SELECT 1 FROM previews WHERE ${patchedPreviewCondition})`,
       )
-      .bind(address.owner, address.repo, Number(address.number), address.kind),
+      .bind(...patchedBindings),
     db
       .prepare(
         `UPDATE previews SET
@@ -389,24 +392,19 @@ async function updatePreview(
            state = coalesce(?7, state),
            diff = coalesce(?8, diff),
            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-         WHERE ${previewAddressCondition}
+         WHERE ${patchedPreviewCondition}
          RETURNING ${previewColumns}`,
       )
-      .bind(
-        address.owner,
-        address.repo,
-        Number(address.number),
-        address.kind,
-        title,
-        body,
-        textField(fields, "state"),
-        diff,
-      ),
+      .bind(...patchedBindings),
   ]);
   const preview = updated?.results[0];
-  return preview
-    ? Response.json(previewJson(new URL(request.url).origin, preview))
-    : githubError(404, "Not Found");
+  if (preview) return Response.json(previewJson(new URL(request.url).origin, preview));
+  // Nothing was updated: either there is no such preview, or the patch would exceed the limit.
+  const existing = await db
+    .prepare(`SELECT id FROM previews WHERE ${previewAddressCondition}`)
+    .bind(address.owner, address.repo, Number(address.number), address.kind)
+    .first();
+  return existing ? githubError(422, previewTooLarge) : githubError(404, "Not Found");
 }
 
 /**
@@ -451,6 +449,8 @@ async function createComment(
   if (fields instanceof Response) return fields;
   const problem = fieldsProblem(fields, ["body"]);
   if (problem) return githubError(422, problem);
+  // A preview's body may be empty, but GitHub refuses an empty comment.
+  if (fields.body === "") return githubError(422, "body must not be empty");
   const [target, inserted] = await db.batch([
     commentTargetStatement(db, path),
     db
@@ -467,26 +467,36 @@ async function createComment(
   return Response.json(commentJson(new URL(request.url).origin, preview, comment), { status: 201 });
 }
 
-/** `GET .../issues/{number}/comments`: the comments of an issue or a pull request, oldest first. */
+/**
+ * `GET .../issues/{number}/comments`: the comments of an issue or a pull request, oldest first.
+ * The target and its comments are read in one batch, so they come from the same preview.
+ */
 async function listComments(
   db: D1Database,
   request: Request,
   path: CommentPath,
 ): Promise<Response> {
-  const preview = await commentTargetStatement(db, path).first<CommentTarget>();
-  if (!preview) return githubError(404, "Not Found");
   const url = new URL(request.url);
   const page = listPage(url);
-  const { results } = await db
-    .prepare(
-      "SELECT id, body, created_at, updated_at FROM comments WHERE preview_id = ?1 ORDER BY id LIMIT ?2 OFFSET ?3",
-    )
-    .bind(preview.id, page.limit + 1, page.offset)
-    .all<CommentRow>();
+  const [target, listed] = await db.batch([
+    commentTargetStatement(db, path),
+    db
+      .prepare(
+        `SELECT comments.id, comments.body, comments.created_at, comments.updated_at
+         FROM comments JOIN previews ON previews.id = comments.preview_id
+         WHERE previews.owner = ?1 AND previews.repo = ?2 AND previews.number = ?3
+         ORDER BY comments.id LIMIT ?4 OFFSET ?5`,
+      )
+      .bind(path.owner, path.repo, Number(path.number), page.limit + 1, page.offset),
+  ]);
+  const preview = target?.results[0] as CommentTarget | undefined;
+  if (!preview) return githubError(404, "Not Found");
   return listResponse(
     url,
     page,
-    results.map((comment) => commentJson(url.origin, preview, comment)),
+    ((listed?.results ?? []) as CommentRow[]).map((comment) =>
+      commentJson(url.origin, preview, comment),
+    ),
   );
 }
 
