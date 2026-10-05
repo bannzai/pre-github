@@ -115,5 +115,5 @@ main{padding:24px 32px;display:flex;flex-direction:column;gap:16px}
 .login input{width:100%;padding:8px 12px;border:1px solid #d0d7de;border-radius:6px;font:inherit}
 .login .note{font-size:12px}
 .login .error{padding:8px 12px;border:1px solid #ff8182;border-radius:6px;background:#ffebe9;color:#d1242f}
-@media (max-width:640px){.app-header,main{padding-left:16px;padding-right:16px}.repo-nav,.preview-note{margin-left:0}.title-row h1{font-size:24px}}
+@media (max-width:640px){.app-header,main{padding-left:16px;padding-right:16px}.repo-nav,.preview-note{margin-left:0}.title-row h1{font-size:24px}.delete-confirm{left:0;right:auto}}
 `;

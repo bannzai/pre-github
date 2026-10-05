@@ -194,3 +194,24 @@ test("the delete button removes the preview and its page answers 404 afterwards"
   expect(response?.status()).toBe(404);
   await expect(page.getByRole("heading", { name: "This preview does not exist" })).toBeVisible();
 });
+
+test("on a phone-width screen the delete confirmation stays inside the screen", async ({
+  page,
+  request,
+}, testInfo) => {
+  // The width of a small phone, where the title row wraps the delete button onto its own line.
+  await page.setViewportSize({ width: 375, height: 800 });
+  const pagePath = await createPreview(request, "/repos/e2e/narrow/issues", {
+    title: "A preview opened on a phone",
+    body: "The confirmation must fit.",
+  });
+
+  await signIn(page, pagePath);
+  await page.getByText("Delete preview", { exact: true }).click();
+  const confirmation = await page.locator(".delete-confirm").boundingBox();
+  expect(confirmation).not.toBeNull();
+  expect(confirmation!.x).toBeGreaterThanOrEqual(0);
+  expect(confirmation!.x + confirmation!.width).toBeLessThanOrEqual(375);
+  await expect(page.getByRole("button", { name: "Delete this preview" })).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath("delete-confirm-narrow.png"), fullPage: true });
+});
