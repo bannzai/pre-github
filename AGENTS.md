@@ -15,6 +15,7 @@ Building, testing, and opening a browser happen on an external machine, not on t
 - Do not run on the development machine: `npm ci` / `npm install` (without `--package-lock-only`), `wrangler dev`, `wrangler deploy`, the unit tests, Playwright, or a local browser (agent-browser without `--cdp`). Editing files, `git`, `gh`, and `npm install --package-lock-only` (resolves dependencies without installing or building) are fine
 - Push the branch and open a PR; CI runs per PR. For a branch without a PR: `gh workflow run ci.yml --ref <branch>`
 - The CI steps are the verification commands: `npm ci` → `npm run lint` → `npm run format:check` → `npm run typecheck` → `npm test` → `npm run build` (`wrangler deploy --dry-run`) → `npm run test:e2e`
+- `make` with no arguments runs the same checks after `npm ci` (the `verify` target in `Makefile`, which is also the default target). Use it only on a machine where running them is allowed, such as the external machine above
 - Wait for and read the result: `gh pr checks <PR> --watch`. Failures: `gh run view <run ID> --log-failed`
 - Looking at pages: the `e2e` job uploads Playwright's output (including screenshots) as the `e2e-screenshots` artifact. Fetch it with `gh run download <run ID> -n e2e-screenshots -D ./tmp/e2e-screenshots-<run ID>` and Read the PNG files
 - When adding page behaviour, drive that page in an E2E test under `e2e/tests/` and save a screenshot with `testInfo.outputPath(...)`. That screenshot is the evidence of the change
